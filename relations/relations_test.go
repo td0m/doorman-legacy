@@ -2,6 +2,9 @@ package relations
 
 import (
 	"context"
+	"fmt"
+	"math/rand"
+	"strconv"
 	"testing"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -11,6 +14,40 @@ import (
 	relationsdb "github.com/td0m/poc-doorman/relations/db"
 	"github.com/td0m/poc-doorman/u"
 )
+
+const n int = 30_000
+
+func setupSampleData() {
+	ctx := context.Background()
+
+	fmt.Println("Creating entities...")
+	for i := 0; i < n; i++ {
+		user := &entitiesdb.Entity{
+			Type: "user",
+			ID:   strconv.Itoa(i),
+		}
+		u.Check(user.Create(ctx))
+	}
+
+	fmt.Println("Creating resources...")
+	for i := 0; i < n; i++ {
+		resource := &entitiesdb.Entity{
+			Type: "resource",
+			ID:   strconv.Itoa(i),
+		}
+		u.Check(resource.Create(ctx))
+	}
+
+	fmt.Println("Creating relations...")
+	for i := 0; i < n*10; i++ {
+		_, err := Create(ctx, CreateRequest{
+			From: Entity{ID: strconv.Itoa(rand.Intn(n-1)), Type: "user"},
+			To: Entity{ID: strconv.Itoa(rand.Intn(n-1)), Type: "resource"},
+		})
+		u.Check(err)
+	}
+
+}
 
 func TestMain(m *testing.M) {
 	ctx := context.Background()
@@ -22,6 +59,8 @@ func TestMain(m *testing.M) {
 
 	entitiesdb.Conn = pgDoorman
 	relationsdb.Conn = pgDoorman
+
+	// setupSampleData()
 
 	m.Run()
 }
@@ -37,7 +76,7 @@ func TestCreate(t *testing.T) {
 		require.NoError(t, user.Create(ctx))
 
 		resource := &entitiesdb.Entity{
-			Type: "user",
+			Type: "resource",
 			ID:   xid.New().String(),
 		}
 		require.NoError(t, resource.Create(ctx))
@@ -76,4 +115,79 @@ func TestCreate(t *testing.T) {
 	t.Run("Fails on cyclic relation", func(t *testing.T) {
 		// TODO
 	})
+
+	t.Run("Validates entity type", func(t *testing.T) {
+		tests := []struct {
+			FromType string
+			ToType   string
+			Success  bool
+		}{
+			{"collection", "collection", false},
+			{"collection", "permission", false},
+			{"collection", "resource", true},
+			{"collection", "role", true},
+			{"collection", "user", false},
+			{"permission", "collection", false},
+			{"permission", "permission", false},
+			{"permission", "resource", false},
+			{"permission", "role", false},
+			{"permission", "user", false},
+			{"resource", "collection", false},
+			{"resource", "permission", false},
+			{"resource", "resource", false},
+			{"resource", "role", false},
+			{"resource", "user", false},
+			{"role", "collection", false},
+			{"role", "permission", true},
+			{"role", "resource", false},
+			{"role", "role", false},
+			{"role", "user", false},
+			{"user", "collection", true},
+			{"user", "permission", false},
+			{"user", "resource", true},
+			{"user", "role", true},
+			{"user", "user", false},
+		}
+
+		for _, tt := range tests {
+			t.Run(fmt.Sprintf("Relating %s to %s results in sucess=%v", tt.FromType, tt.ToType, tt.Success), func(t *testing.T) {
+				from := &entitiesdb.Entity{
+					Type: tt.FromType,
+					ID:   xid.New().String(),
+				}
+				require.NoError(t, from.Create(ctx))
+
+				to := &entitiesdb.Entity{
+					Type: tt.ToType,
+					ID:   xid.New().String(),
+				}
+				require.NoError(t, to.Create(ctx))
+
+				req := CreateRequest{
+					ID:    xid.New().String(),
+					From:  Entity{ID: from.ID, Type: from.Type},
+					To:    Entity{ID: to.ID, Type: to.Type},
+					Attrs: map[string]any{},
+				}
+				_, err := Create(ctx, req)
+				if tt.Success {
+					require.NoError(t, err)
+				} else {
+					require.Error(t, err)
+				}
+			})
+		}
+	})
+}
+
+// TODO: benchmark
+func BenchmarkF(b *testing.B) {
+	ctx := context.Background()
+	for i := 0; i < b.N; i++ {
+		_, err := List(ctx, ListRequest{
+			From: &Entity{ID: strconv.Itoa(rand.Intn(n-1)), Type: "user"},
+			To: &Entity{ID: strconv.Itoa(rand.Intn(n-1)), Type: "resource"},
+		})
+		u.Check(err)
+	}
 }

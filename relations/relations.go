@@ -3,9 +3,12 @@ package relations
 import (
 	"context"
 	"fmt"
+	"net/http"
 
+	"github.com/td0m/poc-doorman/errs"
 	"github.com/td0m/poc-doorman/relations/db"
 	"github.com/td0m/poc-doorman/u"
+	"golang.org/x/exp/slices"
 )
 
 type Relation struct {
@@ -36,13 +39,29 @@ type ListRequest struct {
 // 	return typ + ":" + id
 // }
 
+var validRelations = map[string][]string{
+	"collection": {"role", "resource"},
+	"permission": {},
+	"resource": {},
+	"role": {"permission"},
+	"user": {"collection", "role", "resource"},
+}
+
 func Create(ctx context.Context, req CreateRequest) (*Relation, error) {
-	fmt.Printf("%+v", req)
 	dbrelation := &db.Relation{
 		ID:    req.ID,
 		From:  entityToDB(req.From),
 		To:    entityToDB(req.To),
 		Attrs: req.Attrs,
+	}
+
+	canConnectTo, ok := validRelations[req.From.Type]
+	if !ok {
+		return nil, errs.New(http.StatusBadRequest, "invalid relation")
+	}
+
+	if canConnect := slices.Contains(canConnectTo, req.To.Type); !canConnect {
+		return nil, errs.New(http.StatusBadRequest, "cannot connect to this type")
 	}
 
 	if err := dbrelation.Create(ctx); err != nil {

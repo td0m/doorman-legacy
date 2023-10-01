@@ -20,3 +20,5 @@ create table relations(
   constraint "relations.fkey-to" foreign key (to_type, to_id) references entities(_type, _id)
 );
 
+create index "relations.idx-from-to"
+on relations(from_type, from_id, to_type, to_id);

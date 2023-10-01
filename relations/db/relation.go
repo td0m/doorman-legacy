@@ -2,7 +2,6 @@ package db
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/georgysavva/scany/v2/pgxscan"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -38,8 +37,6 @@ func (r *Relation) Create(ctx context.Context) error {
 	if r.Attrs == nil {
 		r.Attrs = map[string]any{}
 	}
-
-	fmt.Printf("%+v", r)
 
 	query := `
 	  insert into relations(_id, from_id, from_type, to_id, to_type, attrs)
