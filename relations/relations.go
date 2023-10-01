@@ -28,8 +28,8 @@ type CreateRequest struct {
 }
 
 type ListRequest struct {
-	From Entity
-	To   Entity
+	From *Entity
+	To   *Entity
 }
 
 // func Entity(typ, id string) string {
@@ -55,16 +55,21 @@ func Create(ctx context.Context, req CreateRequest) (*Relation, error) {
 }
 
 func List(ctx context.Context, r ListRequest) ([]Relation, error) {
-	if r.From.ID == "" || r.To.ID == "" {
-		return nil, fmt.Errorf("to and from must be provided")
+	if r.From == nil && r.To == nil {
+		return nil, fmt.Errorf("to or from must be provided")
 	}
 
-	dbrelations, err := db.ListRelations(ctx, db.RelationFilter{
-		FromID:   &r.From.ID,
-		FromType: &r.From.Type,
-		ToID:     &r.To.ID,
-		ToType:   &r.To.Type,
-	})
+	filter := db.RelationFilter{}
+	if r.From != nil {
+		filter.FromID = &r.From.ID
+		filter.FromType = &r.From.Type
+	}
+	if r.To != nil {
+		filter.ToID = &r.To.ID
+		filter.ToType = &r.To.Type
+	}
+
+	dbrelations, err := db.ListRelations(ctx, filter)
 	if err != nil {
 		return nil, err
 	}

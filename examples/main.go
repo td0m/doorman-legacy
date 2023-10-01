@@ -45,12 +45,22 @@ func main() {
 	check(err)
 	fmt.Println(r)
 
-	rs, err := relations.List(ctx, relations.ListRequest{
+	r2, err := relations.Create(ctx, relations.CreateRequest{
 		From: relations.Entity{ID: dom.ID, Type: dom.Type},
 		To:   relations.Entity{ID: post1.ID, Type: post1.Type},
 	})
 	check(err)
-	fmt.Println("relations", rs)
+	fmt.Println(r2)
+
+	rs, err := relations.List(ctx, relations.ListRequest{
+		From: &relations.Entity{ID: dom.ID, Type: dom.Type},
+		To:   &relations.Entity{ID: post1.ID, Type: post1.Type},
+	})
+	check(err)
+	fmt.Println("relations")
+	for _, r := range rs {
+		fmt.Println(r.ID)
+	}
 }
 
 func check(err error) {
