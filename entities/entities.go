@@ -15,15 +15,23 @@ type Entity struct {
 	Attrs map[string]any
 }
 
+func (e *Entity) EntityID() string {
+	return e.ID
+}
+
+func (e *Entity) EntityType() string {
+	return e.Type
+}
+
 type EntityUpdate struct {
 	Attrs map[string]any
 }
 
-func Get(ctx context.Context, id string) (*Entity, error) {
+func Get(ctx context.Context, eType, id string) (*Entity, error) {
 	panic(3)
 }
 
-func Update(ctx context.Context, id string, changes EntityUpdate) (*Entity, error) {
+func Update(ctx context.Context, eType, id string, changes EntityUpdate) (*Entity, error) {
 	panic(3)
 }
 
@@ -35,7 +43,8 @@ func Create(ctx context.Context, e Entity) (*Entity, error) {
 		e.ID = xid.New().String()
 	}
 	dbe := &db.Entity{
-		ID: e.Type + ":" + e.ID,
+		ID:   e.ID,
+		Type: e.Type,
 	}
 
 	if err := dbe.Create(ctx); err != nil {
@@ -52,6 +61,7 @@ func Delete(ctx context.Context, id string) error {
 
 func toDomain(e db.Entity) Entity {
 	return Entity{
-		ID: e.ID,
+		ID:   e.ID,
+		Type: e.Type,
 	}
 }

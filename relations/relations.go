@@ -10,33 +10,39 @@ import (
 
 type Relation struct {
 	ID    string
-	From  string
-	To    string
+	From  Entity
+	To    Entity
 	Attrs map[string]any
+}
+
+type Entity struct {
+	ID   string
+	Type string
 }
 
 type CreateRequest struct {
 	ID    string
-	From  string
-	To    string
+	From  Entity
+	To    Entity
 	Attrs map[string]any
 }
 
 type ListRequest struct {
-	From string
-	To   string
+	From Entity
+	To   Entity
 }
 
-func Entity(typ, id string) string {
-	return typ + ":" + id
-}
+// func Entity(typ, id string) string {
+// 	return typ + ":" + id
+// }
 
-func Create(ctx context.Context, r CreateRequest) (*Relation, error) {
+func Create(ctx context.Context, req CreateRequest) (*Relation, error) {
+	fmt.Printf("%+v", req)
 	dbrelation := &db.Relation{
-		ID:    r.ID,
-		From:  r.From,
-		To:    r.To,
-		Attrs: r.Attrs,
+		ID:    req.ID,
+		From:  entityToDB(req.From),
+		To:    entityToDB(req.To),
+		Attrs: req.Attrs,
 	}
 
 	if err := dbrelation.Create(ctx); err != nil {
@@ -49,13 +55,15 @@ func Create(ctx context.Context, r CreateRequest) (*Relation, error) {
 }
 
 func List(ctx context.Context, r ListRequest) ([]Relation, error) {
-	if r.From == "" || r.To == "" {
+	if r.From.ID == "" || r.To.ID == "" {
 		return nil, fmt.Errorf("to and from must be provided")
 	}
 
 	dbrelations, err := db.ListRelations(ctx, db.RelationFilter{
-		From: &r.From,
-		To: &r.To,
+		FromID:   &r.From.ID,
+		FromType: &r.From.Type,
+		ToID:     &r.To.ID,
+		ToType:   &r.To.Type,
 	})
 	if err != nil {
 		return nil, err
@@ -67,8 +75,22 @@ func List(ctx context.Context, r ListRequest) ([]Relation, error) {
 func toDomain(r db.Relation) Relation {
 	return Relation{
 		ID:    r.ID,
-		From:  r.From,
-		To:    r.To,
+		From:  entityRefToDomain(r.From),
+		To:    entityRefToDomain(r.To),
 		Attrs: r.Attrs,
+	}
+}
+
+func entityToDB(r Entity) db.EntityRef {
+	return db.EntityRef{
+		ID:   r.ID,
+		Type: r.Type,
+	}
+}
+
+func entityRefToDomain(r db.EntityRef) Entity {
+	return Entity{
+		ID:   r.ID,
+		Type: r.Type,
 	}
 }

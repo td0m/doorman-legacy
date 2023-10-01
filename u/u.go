@@ -13,6 +13,10 @@ func Check(err error) {
 	}
 }
 
+func Ptr[T any](t T) *T {
+	return &t
+}
+
 func Map[T any, U any](ts []T, f func(T) U) []U {
 	us := make([]U, len(ts))
 	for i, t := range ts {
@@ -35,9 +39,9 @@ func FilterBy(filterStruct any) (string, []any) {
 		fieldType := val.Type().Field(i)
 
 		sqlName := fieldType.Tag.Get("db")
-        if sqlName == "-" {
-            continue
-        }
+		if sqlName == "-" {
+			continue
+		}
 		if sqlName == "" {
 			sqlName = string(unicode.ToLower(rune(fieldType.Name[0]))) + fieldType.Name[1:]
 		}
@@ -47,7 +51,7 @@ func FilterBy(filterStruct any) (string, []any) {
 			operator = "="
 		}
 
-		filters = append(filters, `` + sqlName+` `+operator+" $"+strconv.Itoa(len(filters)+1))
+		filters = append(filters, ``+sqlName+` `+operator+" $"+strconv.Itoa(len(filters)+1))
 		params = append(params, value.Interface())
 	}
 

@@ -28,26 +28,26 @@ func main() {
 	})
 	check(err)
 
-	fmt.Println(dom)
+	fmt.Println("dom", dom)
 
 	post1, err := entities.Create(ctx, entities.Entity{
-		ID: "posts/" + xid.New().String(),
+		ID:   "posts/" + xid.New().String(),
 		Type: "resource",
 	})
 	check(err)
 
-	fmt.Println(post1)
+	fmt.Println("post", post1)
 
 	r, err := relations.Create(ctx, relations.CreateRequest{
-		From: dom.ID,
-		To: post1.ID,
+		From: relations.Entity{ID: dom.ID, Type: dom.Type},
+		To:   relations.Entity{ID: post1.ID, Type: post1.Type},
 	})
 	check(err)
 	fmt.Println(r)
 
 	rs, err := relations.List(ctx, relations.ListRequest{
-		From: dom.ID,
-		To: post1.ID,
+		From: relations.Entity{ID: dom.ID, Type: dom.Type},
+		To:   relations.Entity{ID: post1.ID, Type: post1.Type},
 	})
 	check(err)
 	fmt.Println("relations", rs)

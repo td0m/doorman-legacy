@@ -13,15 +13,22 @@ import (
 var Conn *pgxpool.Pool
 
 type Relation struct {
-	ID    string `db:"_id"`
-	From  string
-	To    string
+	ID    string    `db:"_id"`
+	From  EntityRef `db:"from"`
+	To    EntityRef `db:"to"`
 	Attrs map[string]any
 }
 
+type EntityRef struct {
+	ID   string
+	Type string
+}
+
 type RelationFilter struct {
-	From *string `db:"\"from\""`
-	To   *string `db:"\"to\""`
+	FromID   *string `db:"from_id"`
+	FromType *string `db:"from_type"`
+	ToID     *string `db:"to_id"`
+	ToType   *string `db:"to_type"`
 }
 
 func (r *Relation) Create(ctx context.Context) error {
@@ -32,14 +39,14 @@ func (r *Relation) Create(ctx context.Context) error {
 		r.Attrs = map[string]any{}
 	}
 
-	query := `
-	  insert into relations(_id, "from", "to", attrs)
-	  values($1, $2, $3, $4)
-	`
-
 	fmt.Printf("%+v", r)
 
-	_, err := Conn.Exec(ctx, query, r.ID, r.From, r.To, r.Attrs)
+	query := `
+	  insert into relations(_id, from_id, from_type, to_id, to_type, attrs)
+	  values($1, $2, $3, $4, $5, $6)
+	`
+
+	_, err := Conn.Exec(ctx, query, r.ID, r.From.ID, r.From.Type, r.To.ID, r.To.Type, r.Attrs)
 	if err != nil {
 		return err
 	}
@@ -50,7 +57,13 @@ func (r *Relation) Create(ctx context.Context) error {
 func ListRelations(ctx context.Context, f RelationFilter) ([]Relation, error) {
 	where, params := u.FilterBy(&f)
 	query := `
-	  select _id, "from", "to", attrs
+	  select
+	    _id,
+	    from_id as "from.id",
+	    from_type as "from.type",
+	    to_id as "to.id",
+	    to_type as "to.type",
+	    attrs
 	  from relations
 	` + where
 
