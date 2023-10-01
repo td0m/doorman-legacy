@@ -7,6 +7,8 @@ create table entities(
   -- TODO: unique on json "sub" if _id starts with users/
 );
 
+create index "entities.idx-id-type" on entities(_id, _type);
+
 -- directed graph
 create table relations(
   _id text primary key,

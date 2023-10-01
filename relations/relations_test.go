@@ -5,7 +5,9 @@ import (
 	"fmt"
 	"math/rand"
 	"strconv"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/xid"
@@ -15,37 +17,74 @@ import (
 	"github.com/td0m/poc-doorman/u"
 )
 
-const n int = 30_000
+const n int = 1_000_000
 
 func setupSampleData() {
 	ctx := context.Background()
+	//
+	// fmt.Println("Creating entities...", time.Now())
+	// for i := 0; i < n; i++ {
+	// 	user := &entitiesdb.Entity{
+	// 		Type: "user",
+	// 		ID:   strconv.Itoa(i),
+	// 	}
+	// 	u.Check(user.Create(ctx))
+	// }
+	//
+	// fmt.Println("Creating resources...", time.Now())
+	// for i := 0; i < n; i++ {
+	// 	resource := &entitiesdb.Entity{
+	// 		Type: "resource",
+	// 		ID:   strconv.Itoa(i),
+	// 	}
+	// 	u.Check(resource.Create(ctx))
+	// }
 
-	fmt.Println("Creating entities...")
-	for i := 0; i < n; i++ {
-		user := &entitiesdb.Entity{
-			Type: "user",
-			ID:   strconv.Itoa(i),
+	for i := 0; i < 10000; i++ {
+		start := time.Now()
+		params := []any{}
+		query := strings.Builder{}
+
+		query.WriteString(`
+	  insert into relations(_id, from_id, from_type, to_id, to_type, attrs)
+          values
+	`)
+		m := 1000
+		for i := 0; i < m; i++ {
+			row := []any{
+				xid.New().String(),
+				strconv.Itoa(rand.Intn(n - 1)),
+				"user",
+				strconv.Itoa(rand.Intn(n - 1)),
+				"resource",
+				map[string]any{},
+			}
+			args := []string{}
+			for i := range row {
+				args = append(args, "$"+strconv.Itoa(i+len(params)+1))
+			}
+			params = append(
+				params,
+				row...,
+			)
+			if i > 0 {
+				query.WriteString(",")
+			}
+			query.WriteString("(" + strings.Join(args, ",") + ")")
 		}
-		u.Check(user.Create(ctx))
-	}
 
-	fmt.Println("Creating resources...")
-	for i := 0; i < n; i++ {
-		resource := &entitiesdb.Entity{
-			Type: "resource",
-			ID:   strconv.Itoa(i),
-		}
-		u.Check(resource.Create(ctx))
-	}
-
-	fmt.Println("Creating relations...")
-	for i := 0; i < n*10; i++ {
-		_, err := Create(ctx, CreateRequest{
-			From: Entity{ID: strconv.Itoa(rand.Intn(n-1)), Type: "user"},
-			To: Entity{ID: strconv.Itoa(rand.Intn(n-1)), Type: "resource"},
-		})
+		_, err := relationsdb.Conn.Exec(ctx, query.String(), params...)
 		u.Check(err)
+		fmt.Println(time.Since(start).Nanoseconds() / int64(m))
 	}
+
+	// for i := 0; i < n; i++ {
+	// 	_, err := Create(ctx, CreateRequest{
+	// 		From: Entity{ID: strconv.Itoa(rand.Intn(n-1)), Type: "user"},
+	// 		To: Entity{ID: strconv.Itoa(rand.Intn(n-1)), Type: "resource"},
+	// 	})
+	// 	u.Check(err)
+	// }
 
 }
 
@@ -185,8 +224,8 @@ func BenchmarkF(b *testing.B) {
 	ctx := context.Background()
 	for i := 0; i < b.N; i++ {
 		_, err := List(ctx, ListRequest{
-			From: &Entity{ID: strconv.Itoa(rand.Intn(n-1)), Type: "user"},
-			To: &Entity{ID: strconv.Itoa(rand.Intn(n-1)), Type: "resource"},
+			From: &Entity{ID: strconv.Itoa(rand.Intn(n - 1)), Type: "user"},
+			To:   &Entity{ID: strconv.Itoa(rand.Intn(n - 1)), Type: "resource"},
 		})
 		u.Check(err)
 	}
