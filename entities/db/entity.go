@@ -31,3 +31,20 @@ func (e *Entity) Create(ctx context.Context) error {
 
 	return nil
 }
+
+func (e *Entity) Delete(ctx context.Context) error {
+	query := `
+	  delete from entities
+	  where
+	    _id = $1 and
+	    _type = $2
+	`
+
+	_, err := Conn.Exec(ctx, query, e.ID, e.Type)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
