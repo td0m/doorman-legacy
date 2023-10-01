@@ -106,7 +106,6 @@ func TestMain(m *testing.M) {
 
 func TestCreate(t *testing.T) {
 	ctx := context.Background()
-
 	t.Run("Success on valid entities", func(t *testing.T) {
 		user := &entitiesdb.Entity{
 			Type: "user",
@@ -217,6 +216,118 @@ func TestCreate(t *testing.T) {
 			})
 		}
 	})
+
+	t.Run("Sucess computing indirect relations", func(t *testing.T) {
+		tests := [][]Entity{
+			{{ID: "u1", Type: "user"}, {ID: "c1", Type: "collection"}, {ID: "r1", Type: "role"}, {ID: "p1", Type: "permission"}},
+			// {"user", "collection", "resource"},
+		}
+		for _, tt := range tests {
+			t.Run(fmt.Sprintf("Path: %+v", tt), func(t *testing.T) {
+				permutations := permutations(makeRelations(tt))
+				for _, pairs := range permutations {
+					// Insert them from left to right
+					t.Run(fmt.Sprintf("Permutation %+v", pairs), func(t *testing.T) {
+						rnd := xid.New().String()
+						for i := range tt {
+							e := tt[i]
+							tt[i] = e
+							en := &entitiesdb.Entity{
+								Type: e.Type,
+								ID:   e.ID + ":" + rnd,
+							}
+							require.NoError(t, en.Create(ctx))
+						}
+
+						for _, pair := range pairs {
+							req := CreateRequest{
+								From: Entity{ID: pair.From.ID + ":" + rnd, Type: pair.From.Type},
+								To:   Entity{ID: pair.To.ID + ":" + rnd, Type: pair.To.Type},
+							}
+							_, err := Create(ctx, req)
+							require.NoError(t, err)
+						}
+
+						tOnly := func(t Relation) string {
+							return t.From.ID + "->" + t.To.ID
+						}
+
+						for a := range tt {
+							for b := range tt {
+								if b <= a {
+									continue
+								}
+
+								all, err := List(ctx, ListRequest{
+									From: &Entity{ID: tt[a].ID + ":" + rnd, Type: tt[a].Type},
+									To:   &Entity{ID: tt[b].ID + ":" + rnd, Type: tt[b].Type},
+								})
+								require.NoError(t, err)
+								require.Equal(t, 1, len(all), "relation: %s, requests: %+v", tt[a].ID+" => "+tt[b].ID, u.Map(pairs, tOnly)) // TODO: make it 1
+							}
+						}
+					})
+				}
+			})
+		}
+	})
+}
+
+func permutations[T any](ts []T) [][]T {
+	nils := make([]*T, len(ts))
+	return permutationsRec(ts, nils)
+}
+
+func permutationsRec[T any](ts []T, start []*T) [][]T {
+	if len(ts) == 1 {
+		startUnnull := make([]T, len(start))
+		for i, v := range start {
+			if v != nil {
+				startUnnull[i] = *v
+			} else {
+				startUnnull[i] = ts[0]
+			}
+		}
+		return [][]T{startUnnull}
+	}
+
+	first, rest := ts[0], ts[1:]
+
+	perms := [][]T{}
+	for i := 0; i < len(ts); i++ {
+		perm := make([]*T, len(start))
+		copy(perm, start)
+
+		nilCount := 0
+		for j, t := range perm {
+			if t == nil {
+				nilCount++
+			}
+			if nilCount == i+1 {
+				perm[j] = &first
+				break
+			}
+		}
+		perms = append(perms, permutationsRec(rest, perm)...)
+	}
+
+	return perms
+}
+
+func makeRelations(es []Entity) []Relation {
+	relations := make([]Relation, len(es)-1)
+	for i, left := range es {
+		if i == len(es)-1 {
+			break
+		}
+		right := es[i+1]
+
+		relations[i] = Relation{
+			From: left,
+			To:   right,
+		}
+	}
+	return relations
 }
 
 // TODO: benchmark

@@ -12,10 +12,11 @@ import (
 var Conn *pgxpool.Pool
 
 type Relation struct {
-	ID    string    `db:"_id"`
-	From  EntityRef `db:"from"`
-	To    EntityRef `db:"to"`
-	Attrs map[string]any
+	ID       string    `db:"_id"`
+	From     EntityRef `db:"from"`
+	To       EntityRef `db:"to"`
+	Attrs    map[string]any
+	Indirect bool
 }
 
 type EntityRef struct {
@@ -28,6 +29,7 @@ type RelationFilter struct {
 	FromType *string `db:"from_type"`
 	ToID     *string `db:"to_id"`
 	ToType   *string `db:"to_type"`
+	Indirect *bool
 }
 
 func (r *Relation) Create(ctx context.Context) error {
@@ -39,11 +41,11 @@ func (r *Relation) Create(ctx context.Context) error {
 	}
 
 	query := `
-	  insert into relations(_id, from_id, from_type, to_id, to_type, attrs)
-	  values($1, $2, $3, $4, $5, $6)
+	  insert into relations(_id, from_id, from_type, to_id, to_type, attrs, indirect)
+	  values($1, $2, $3, $4, $5, $6, $7)
 	`
 
-	_, err := Conn.Exec(ctx, query, r.ID, r.From.ID, r.From.Type, r.To.ID, r.To.Type, r.Attrs)
+	_, err := Conn.Exec(ctx, query, r.ID, r.From.ID, r.From.Type, r.To.ID, r.To.Type, r.Attrs, r.Indirect)
 	if err != nil {
 		return err
 	}
@@ -60,7 +62,8 @@ func ListRelations(ctx context.Context, f RelationFilter) ([]Relation, error) {
 	    from_type as "from.type",
 	    to_id as "to.id",
 	    to_type as "to.type",
-	    attrs
+	    attrs,
+	    indirect
 	  from relations
 	` + where
 

@@ -42,9 +42,9 @@ type ListRequest struct {
 var validRelations = map[string][]string{
 	"collection": {"role", "resource"},
 	"permission": {},
-	"resource": {},
-	"role": {"permission"},
-	"user": {"collection", "role", "resource"},
+	"resource":   {},
+	"role":       {"permission"},
+	"user":       {"collection", "role", "resource"},
 }
 
 func Create(ctx context.Context, req CreateRequest) (*Relation, error) {
@@ -64,6 +64,10 @@ func Create(ctx context.Context, req CreateRequest) (*Relation, error) {
 		return nil, errs.New(http.StatusBadRequest, "cannot connect to this type")
 	}
 
+	if err := rebuildIndirects(ctx, req.From, req.To); err != nil {
+		return nil, fmt.Errorf("failed to rebuild indirects: %w", err)
+	}
+
 	if err := dbrelation.Create(ctx); err != nil {
 		return nil, fmt.Errorf("db failed to create: %w", err)
 	}
@@ -71,6 +75,53 @@ func Create(ctx context.Context, req CreateRequest) (*Relation, error) {
 	relation := toDomain(*dbrelation)
 
 	return &relation, nil
+}
+
+func rebuildIndirects(ctx context.Context, from, to Entity) error {
+	fmt.Println("rebuild:", from.Type, "=>", to.Type)
+
+	leftRelations, err := db.ListRelations(ctx, db.RelationFilter{
+		ToID:   &from.ID,
+		ToType: &from.Type,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to list relations to the left: %w", err)
+	}
+	left := make([]Entity, len(leftRelations))
+	for i, r := range leftRelations {
+		left[i] = entityRefToDomain(r.From)
+	}
+	left = append(left, from)
+
+	rightRelations, err := db.ListRelations(ctx, db.RelationFilter{
+		FromID:   &to.ID,
+		FromType: &to.Type,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to list relations to the right: %w", err)
+	}
+	right := make([]Entity, len(rightRelations))
+	for i, r := range rightRelations {
+		right[i] = entityRefToDomain(r.To)
+	}
+	right = append(right, to)
+
+	for _, l := range left {
+		for _, r := range right {
+			if l == from && r == to {
+				continue
+			}
+			rel := &db.Relation{
+				From:     entityToDB(l),
+				To:       entityToDB(r),
+				Indirect: true,
+			}
+			if err := rel.Create(ctx); err != nil {
+				return fmt.Errorf("failed to create rel: %w", err)
+			}
+		}
+	}
+	return nil
 }
 
 func List(ctx context.Context, r ListRequest) ([]Relation, error) {
