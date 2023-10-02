@@ -33,10 +33,35 @@ create index "relations.idx-to"
 on relations(to_type, to_id);
 
 create table dependencies(
-  relation_id text not null references relations(_id),
-  dependency_id text not null references relations(_id),
+  relation_id text not null,
+  dependency_id text not null,
 
-  primary key(relation_id, dependency_id)
+  primary key(relation_id, dependency_id),
+
+  constraint "dependencies.fkey-relation_id" foreign key (relation_id) references relations(_id) on delete cascade,
+  constraint "dependencies.fkey-dependency_id" foreign key (dependency_id) references relations(_id)
 );
 
 -- TODO: ensure no cycles, no depending on itself OR linking to itself
+
+-- removes relations that depend on the one being deleted
+create or replace function remove_dependents()
+returns trigger
+language plpgsql
+as $$
+begin
+  delete from relations
+  where _id in (
+    select relation_id from dependencies where dependency_id=old._id
+  );
+  return old;
+end;
+$$;
+
+-- on relation deleted:
+create trigger trg_delete_dependencies
+before delete on relations
+for each row
+when (old.indirect = false) -- prevents infinite loop, as we cannot depend on "indirect" relations.
+execute procedure remove_dependents();
+
