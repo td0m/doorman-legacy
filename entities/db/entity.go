@@ -32,8 +32,8 @@ func (e *Entity) Create(ctx context.Context) error {
 	} else if strings.Contains(e.ID, " ") {
 		return errs.New(http.StatusBadRequest, "ID cannot contain spaces")
 	}
-	if e.Attrs == nil {
-		e.Attrs = map[string]any{}
+	if len(e.Attrs) == 0 {
+		e.Attrs = nil
 	}
 	if !wordRe.MatchString(e.Type) {
 		return errs.New(http.StatusBadRequest, "Type is invalid, must be an all lowercase word.")

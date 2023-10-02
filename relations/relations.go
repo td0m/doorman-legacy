@@ -51,7 +51,14 @@ var validRelations = map[string][]string{
 	"user":       {"collection", "role", "resource"},
 }
 
+func canHaveAttrs(from, to string) bool {
+	return from == "collection" || from == "identity" && to != "collection"
+}
+
 func Create(ctx context.Context, req CreateRequest) (*Relation, error) {
+	if req.Attrs != nil && !canHaveAttrs(req.From.Type, req.To.Type) {
+		return nil, errs.New(http.StatusBadRequest, "cannot set attributes for this relation: invalid types")
+	}
 	dbrelation := &db.Relation{
 		ID:    req.ID,
 		From:  entityToDB(req.From),
@@ -183,8 +190,26 @@ func rebuildIndirects(ctx context.Context, relation Relation, from, to Entity) e
 		Relation: db.Relation{To: entityToDB(to)},
 	})
 
+	// Derrive attributes if set by any of the relations
+	var attrs map[string]any
+	for _, rel := range leftRelations {
+		if rel.Attrs != nil {
+			attrs = rel.Attrs
+			break
+		}
+	}
+	if attrs == nil {
+		for _, rel := range rightRelations {
+			if rel.Attrs != nil {
+				attrs = rel.Attrs
+				break
+			}
+		}
+	}
+
 	for i, l := range leftRelations {
 		for j, r := range rightRelations {
+			// Skip the new relation as it was created outside of this function
 			if i == len(leftRelations)-1 && j == len(rightRelations)-1 {
 				continue
 			}
@@ -193,6 +218,7 @@ func rebuildIndirects(ctx context.Context, relation Relation, from, to Entity) e
 				From:     l.From,
 				To:       r.To,
 				Indirect: true,
+				Attrs:    attrs,
 			}
 			if err := rel.Create(ctx); err != nil {
 				return fmt.Errorf("failed to create rel: %w", err)

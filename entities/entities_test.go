@@ -53,7 +53,7 @@ func TestCreate(t *testing.T) {
 			if tt.success {
 				require.NoError(t, err)
 				require.Equal(t, tt.in.Type, res.Type)
-				if tt.in.Attrs != nil {
+				if len(tt.in.Attrs) > 0 {
 					require.Equal(t, tt.in.Attrs, res.Attrs)
 				}
 			} else {

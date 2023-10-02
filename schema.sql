@@ -1,7 +1,7 @@
 create table entities(
   _id text not null,
   _type text not null,
-  attrs jsonb not null,
+  attrs jsonb,
 
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
@@ -15,7 +15,7 @@ create index "entities.idx-id-type" on entities(_id, _type);
 -- directed graph
 create table relations(
   _id text primary key,
-  attrs jsonb not null,
+  attrs jsonb,
   from_id text not null,
   from_type text not null,
   to_id text not null,

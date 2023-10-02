@@ -122,10 +122,9 @@ func TestCreate(t *testing.T) {
 		require.NoError(t, resource.Create(ctx))
 
 		req := CreateRequest{
-			ID:    xid.New().String(),
-			From:  Entity{ID: user.ID, Type: user.Type},
-			To:    Entity{ID: resource.ID, Type: resource.Type},
-			Attrs: map[string]any{},
+			ID:   xid.New().String(),
+			From: Entity{ID: user.ID, Type: user.Type},
+			To:   Entity{ID: resource.ID, Type: resource.Type},
 		}
 		relation, err := Create(ctx, req)
 		require.NoError(t, err)
@@ -204,13 +203,47 @@ func TestCreate(t *testing.T) {
 				require.NoError(t, to.Create(ctx))
 
 				req := CreateRequest{
-					ID:    xid.New().String(),
-					From:  Entity{ID: from.ID, Type: from.Type},
-					To:    Entity{ID: to.ID, Type: to.Type},
-					Attrs: map[string]any{},
+					ID:   xid.New().String(),
+					From: Entity{ID: from.ID, Type: from.Type},
+					To:   Entity{ID: to.ID, Type: to.Type},
 				}
 				_, err := Create(ctx, req)
 				if tt.Success {
+					require.NoError(t, err)
+				} else {
+					require.Error(t, err)
+				}
+			})
+		}
+	})
+
+	// TODO: check no attributes on certain relations
+	t.Run("Only allows attributes in certain relations", func(t *testing.T) {
+		tests := []struct {
+			from string
+			to   string
+			success bool
+		}{
+			{"user", "collection", false},
+			{"role", "permission", false},
+			{"collection", "steven", false},
+		}
+
+		for _, tt := range tests {
+			t.Run(fmt.Sprintf("%s %s", tt.from, tt.to), func(t *testing.T) {
+				from := &entitiesdb.Entity{ID: xid.New().String(), Type: tt.from}
+				require.NoError(t, from.Create(ctx))
+
+				to := &entitiesdb.Entity{ID: xid.New().String(), Type: tt.to}
+				require.NoError(t, to.Create(ctx))
+
+				in := CreateRequest{
+					From: Entity{ID: from.ID, Type: from.Type},
+					To: Entity{ID: to.ID, Type: to.Type},
+					Attrs: map[string]any{"foo": true},
+				}
+				_, err := Create(ctx, in)
+				if tt.success {
 					require.NoError(t, err)
 				} else {
 					require.Error(t, err)
@@ -422,6 +455,53 @@ func TestUpdate(t *testing.T) {
 	require.Equal(t, in.Attrs, dbrelation.Attrs)
 }
 
+func TestCreateAttributes(t *testing.T) {
+	ctx := context.Background()
+
+	rnd := xid.New().String()
+	u1 := Entity{ID: "u1:" + rnd, Type: "user"}
+	c1 := Entity{ID: "c1:" + rnd, Type: "collection"}
+	r1 := Entity{ID: "r1:" + rnd, Type: "role"}
+	p1 := Entity{ID: "p1:" + rnd, Type: "permission"}
+
+	createEntity := func(e Entity) error {
+		return u.Ptr(entitiesdb.Entity{ID: e.ID, Type: e.Type}).Create(ctx)
+	}
+
+	require.NoError(t, createEntity(u1))
+	require.NoError(t, createEntity(c1))
+	require.NoError(t, createEntity(r1))
+	require.NoError(t, createEntity(p1))
+
+	u1c1, err := Create(ctx, CreateRequest{
+		From: u1,
+		To:   c1,
+	})
+	require.NoError(t, err)
+
+	c1r1, err := Create(ctx, CreateRequest{
+		From:  c1,
+		To:    r1,
+		Attrs: map[string]any{"foo": true},
+	})
+	require.NoError(t, err)
+
+	r1p1, err := Create(ctx, CreateRequest{
+		From: r1,
+		To:   p1,
+	})
+	require.NoError(t, err)
+
+	u1p1s, err := List(ctx, ListRequest{
+		From: &Entity{ID: u1.ID, Type: u1.Type},
+		To:   &Entity{ID: p1.ID, Type: p1.Type},
+	})
+	require.NoError(t, err)
+	require.Equal(t, 1, len(u1p1s))
+	require.Equal(t, c1r1.Attrs, u1p1s[0].Attrs)
+	fmt.Println(u1c1, c1r1, r1p1)
+}
+
 func permutations[T any](ts []T) [][]T {
 	nils := make([]*T, len(ts))
 	return permutationsRec(ts, nils)
@@ -461,22 +541,6 @@ func permutationsRec[T any](ts []T, start []*T) [][]T {
 	}
 
 	return perms
-}
-
-func makeRelations(es []Entity) []Relation {
-	relations := make([]Relation, len(es)-1)
-	for i, left := range es {
-		if i == len(es)-1 {
-			break
-		}
-		right := es[i+1]
-
-		relations[i] = Relation{
-			From: left,
-			To:   right,
-		}
-	}
-	return relations
 }
 
 // TODO: benchmark

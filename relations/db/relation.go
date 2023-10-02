@@ -94,8 +94,8 @@ func (r *Relation) Create(ctx context.Context) error {
 	if r.ID == "" {
 		r.ID = xid.New().String()
 	}
-	if r.Attrs == nil {
-		r.Attrs = map[string]any{}
+	if len(r.Attrs) == 0 {
+		r.Attrs = nil
 	}
 
 	query := `
