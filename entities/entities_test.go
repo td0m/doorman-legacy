@@ -66,7 +66,6 @@ func TestUpdate(t *testing.T) {
 	}
 	err := dbentity.Create(ctx)
 	require.NoError(t, err)
-	require.Nil(t, dbentity.UpdatedAt)
 
 	in := UpdateRequest{
 		ID: dbentity.ID,
@@ -74,10 +73,9 @@ func TestUpdate(t *testing.T) {
 		Attrs: map[string]any{"bar": true},
 	}
 	res, err := Update(ctx, in)
-
 	require.NoError(t, err)
+
 	require.Equal(t, in.Attrs, res.Attrs)
-	require.NotNil(t, res.UpdatedAt)
 	require.True(t, res.UpdatedAt.After(res.CreatedAt))
 
 	dbentity, err = db.Get(ctx, in.ID, in.Type)

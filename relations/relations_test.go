@@ -15,7 +15,6 @@ import (
 	"github.com/stretchr/testify/require"
 	entitiesdb "github.com/td0m/poc-doorman/entities/db"
 	"github.com/td0m/poc-doorman/relations/db"
-	relationsdb "github.com/td0m/poc-doorman/relations/db"
 	"github.com/td0m/poc-doorman/u"
 	"golang.org/x/exp/slices"
 )
@@ -76,7 +75,7 @@ func setupSampleData() {
 			query.WriteString("(" + strings.Join(args, ",") + ")")
 		}
 
-		_, err := relationsdb.Conn.Exec(ctx, query.String(), params...)
+		_, err := db.Conn.Exec(ctx, query.String(), params...)
 		u.Check(err)
 		fmt.Println(time.Since(start).Nanoseconds() / int64(m))
 	}
@@ -100,7 +99,7 @@ func TestMain(m *testing.M) {
 	defer pgDoorman.Close()
 
 	entitiesdb.Conn = pgDoorman
-	relationsdb.Conn = pgDoorman
+	db.Conn = pgDoorman
 
 	// setupSampleData()
 
@@ -311,7 +310,7 @@ func TestCreate(t *testing.T) {
 							require.NoError(t, err)
 							require.Equal(t, 1, len(all), "relation: %s, relations: %+v", rel.From.ID+" => "+rel.To.ID, u.Map(relations, tOnly)) // TODO: make it 1
 
-							deps, err := relationsdb.ListDependencies(ctx, all[0].ID)
+							deps, err := db.ListDependencies(ctx, all[0].ID)
 							require.NoError(t, err)
 
 							expectedDeps := u.Map(rel.Deps, relationId)
@@ -335,7 +334,7 @@ func TestDelete(t *testing.T) {
 	u1 := Entity{ID: "u1:" + rnd, Type: "user"}
 	c1 := Entity{ID: "c1:" + rnd, Type: "collection"}
 	r1 := Entity{ID: "r1:" + rnd, Type: "role"}
-	p1 := Entity{ID: "p1:" +rnd, Type: "permission"}
+	p1 := Entity{ID: "p1:" + rnd, Type: "permission"}
 
 	createEntity := func(e Entity) error {
 		return u.Ptr(entitiesdb.Entity{ID: e.ID, Type: e.Type}).Create(ctx)
@@ -348,25 +347,25 @@ func TestDelete(t *testing.T) {
 
 	u1c1, err := Create(ctx, CreateRequest{
 		From: u1,
-		To: c1,
+		To:   c1,
 	})
 	require.NoError(t, err)
 
 	c1r1, err := Create(ctx, CreateRequest{
 		From: c1,
-		To: r1,
+		To:   r1,
 	})
 	require.NoError(t, err)
 
 	r1p1, err := Create(ctx, CreateRequest{
 		From: r1,
-		To: p1,
+		To:   p1,
 	})
 	require.NoError(t, err)
 
 	relations, err := List(ctx, ListRequest{
 		From: &u1,
-		To: &p1,
+		To:   &p1,
 	})
 	require.NoError(t, err)
 	require.Equal(t, 1, len(relations))
@@ -384,10 +383,43 @@ func TestDelete(t *testing.T) {
 
 	relations, err = List(ctx, ListRequest{
 		From: &u1,
-		To: &p1,
+		To:   &p1,
 	})
 	require.NoError(t, err)
 	require.Equal(t, 0, len(relations))
+}
+
+func TestUpdate(t *testing.T) {
+	ctx := context.Background()
+
+	// Make a relation
+
+	from := &entitiesdb.Entity{Type: "user"}
+	require.NoError(t, from.Create(ctx))
+
+	to := &entitiesdb.Entity{Type: "collection"}
+	require.NoError(t, to.Create(ctx))
+
+	dbrelation := &db.Relation{
+		From: db.EntityRef{ID: from.ID, Type: from.Type},
+		To:   db.EntityRef{ID: to.ID, Type: to.Type},
+	}
+	require.NoError(t, dbrelation.Create(ctx))
+
+	// Update the relation
+
+	in := UpdateRequest{
+		Attrs: map[string]any{"bar": true},
+	}
+	res, err := Update(ctx, dbrelation.ID, in)
+	require.NoError(t, err)
+	require.True(t, res.UpdatedAt.After(dbrelation.CreatedAt))
+	require.Equal(t, in.Attrs, res.Attrs)
+
+	dbrelation, err = db.Get(ctx, dbrelation.ID)
+	require.NoError(t, err)
+	require.True(t, dbrelation.UpdatedAt.After(dbrelation.CreatedAt))
+	require.Equal(t, in.Attrs, dbrelation.Attrs)
 }
 
 func permutations[T any](ts []T) [][]T {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/td0m/poc-doorman/errs"
 	"github.com/td0m/poc-doorman/relations/db"
@@ -16,6 +17,9 @@ type Relation struct {
 	From  Entity
 	To    Entity
 	Attrs map[string]any
+
+	CreatedAt time.Time
+	UpdatedAt time.Time
 }
 
 type Entity struct {
@@ -75,6 +79,91 @@ func Create(ctx context.Context, req CreateRequest) (*Relation, error) {
 	}
 
 	return &relation, nil
+}
+
+func List(ctx context.Context, r ListRequest) ([]Relation, error) {
+	if r.From == nil && r.To == nil {
+		return nil, fmt.Errorf("to or from must be provided")
+	}
+
+	filter := db.RelationFilter{}
+	if r.From != nil {
+		filter.FromID = &r.From.ID
+		filter.FromType = &r.From.Type
+	}
+	if r.To != nil {
+		filter.ToID = &r.To.ID
+		filter.ToType = &r.To.Type
+	}
+
+	dbrelations, err := db.ListRelations(ctx, filter)
+	if err != nil {
+		return nil, err
+	}
+
+	return u.Map(dbrelations, toDomain), nil
+}
+
+func Delete(ctx context.Context, id string) error {
+	if err := u.Ptr(db.Relation{ID: id}).Delete(ctx); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func Get(ctx context.Context, id string) (*Relation, error) {
+	dbrelation, err := db.Get(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	return u.Ptr(toDomain(*dbrelation)), nil
+}
+
+type UpdateRequest struct {
+	Attrs map[string]any
+}
+
+func Update(ctx context.Context, id string, request UpdateRequest) (*Relation, error) {
+	dbrelation, err := db.Get(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+
+	if request.Attrs != nil {
+		dbrelation.Attrs = request.Attrs
+	}
+
+	if err := dbrelation.Update(ctx); err != nil {
+		return nil, fmt.Errorf("Update failed: %w", err)
+	}
+
+	return u.Ptr(toDomain(*dbrelation)), nil
+}
+
+func toDomain(r db.Relation) Relation {
+	return Relation{
+		ID:        r.ID,
+		From:      entityRefToDomain(r.From),
+		To:        entityRefToDomain(r.To),
+		Attrs:     r.Attrs,
+		CreatedAt: r.CreatedAt,
+		UpdatedAt: r.UpdatedAt,
+	}
+}
+
+func entityToDB(r Entity) db.EntityRef {
+	return db.EntityRef{
+		ID:   r.ID,
+		Type: r.Type,
+	}
+}
+
+func entityRefToDomain(r db.EntityRef) Entity {
+	return Entity{
+		ID:   r.ID,
+		Type: r.Type,
+	}
 }
 
 func rebuildIndirects(ctx context.Context, relation Relation, from, to Entity) error {
@@ -140,58 +229,4 @@ func rebuildIndirects(ctx context.Context, relation Relation, from, to Entity) e
 		}
 	}
 	return nil
-}
-
-func List(ctx context.Context, r ListRequest) ([]Relation, error) {
-	if r.From == nil && r.To == nil {
-		return nil, fmt.Errorf("to or from must be provided")
-	}
-
-	filter := db.RelationFilter{}
-	if r.From != nil {
-		filter.FromID = &r.From.ID
-		filter.FromType = &r.From.Type
-	}
-	if r.To != nil {
-		filter.ToID = &r.To.ID
-		filter.ToType = &r.To.Type
-	}
-
-	dbrelations, err := db.ListRelations(ctx, filter)
-	if err != nil {
-		return nil, err
-	}
-
-	return u.Map(dbrelations, toDomain), nil
-}
-
-func Delete(ctx context.Context, id string) error {
-	if err := u.Ptr(db.Relation{ID: id}).Delete(ctx); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func toDomain(r db.Relation) Relation {
-	return Relation{
-		ID:    r.ID,
-		From:  entityRefToDomain(r.From),
-		To:    entityRefToDomain(r.To),
-		Attrs: r.Attrs,
-	}
-}
-
-func entityToDB(r Entity) db.EntityRef {
-	return db.EntityRef{
-		ID:   r.ID,
-		Type: r.Type,
-	}
-}
-
-func entityRefToDomain(r db.EntityRef) Entity {
-	return Entity{
-		ID:   r.ID,
-		Type: r.Type,
-	}
 }

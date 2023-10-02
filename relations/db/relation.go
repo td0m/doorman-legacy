@@ -2,6 +2,7 @@ package db
 
 import (
 	"context"
+	"time"
 
 	"github.com/georgysavva/scany/v2/pgxscan"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -17,6 +18,9 @@ type Relation struct {
 	To       EntityRef `db:"to"`
 	Attrs    map[string]any
 	Indirect bool
+
+	CreatedAt time.Time
+	UpdatedAt time.Time
 }
 
 type RelationWithDeps struct {
@@ -37,6 +41,49 @@ type RelationFilter struct {
 	Indirect *bool
 }
 
+func Get(ctx context.Context, id string) (*Relation, error) {
+	query := `
+	  select
+	    _id,
+	    attrs,
+	    created_at,
+	    from_id as "from.id",
+	    from_type as "from.type",
+	    indirect,
+	    to_id as "to.id",
+	    to_type as "to.type",
+	    updated_at
+	  from relations
+	  where
+	    _id = $1
+	`
+
+	var r Relation
+	if err := pgxscan.Get(ctx, Conn, &r, query, id); err != nil {
+		return nil, err
+	}
+	return &r, nil
+}
+
+func (r *Relation) Update(ctx context.Context) error {
+	query := `
+	  update relations
+	  set
+	    updated_at = now(),
+	    attrs = $3
+	  where
+	    _id = $1 and
+	    updated_at = $2
+	  returning updated_at
+	`
+
+	err := pgxscan.Get(ctx, Conn, r, query, r.ID, r.UpdatedAt, r.Attrs)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
 func (r *Relation) Delete(ctx context.Context) error {
 	query := `delete from relations where _id=$1`
 	_, err := Conn.Exec(ctx, query, r.ID)
@@ -68,12 +115,14 @@ func ListLinkedToWithDependencies(ctx context.Context, e EntityRef) ([]RelationW
 	query := `
 	  select
 	    _id,
+	    attrs,
+	    created_at,
 	    from_id as "from.id",
 	    from_type as "from.type",
+	    indirect,
 	    to_id as "to.id",
 	    to_type as "to.type",
-	    attrs,
-	    indirect,
+	    updated_at,
 	    array(select dependency_id from dependencies where relation_id = _id)::text[] as dependency_ids
 	  from relations
 	  where
@@ -91,12 +140,14 @@ func ListLinkedFromWithDependencies(ctx context.Context, e EntityRef) ([]Relatio
 	query := `
 	  select
 	    _id,
+	    attrs,
+	    created_at,
 	    from_id as "from.id",
 	    from_type as "from.type",
+	    indirect,
 	    to_id as "to.id",
 	    to_type as "to.type",
-	    attrs,
-	    indirect,
+	    updated_at,
 	    array(select dependency_id from dependencies where relation_id = _id)::text[] as dependency_ids
 	  from relations
 	  where
@@ -115,12 +166,14 @@ func ListRelations(ctx context.Context, f RelationFilter) ([]Relation, error) {
 	query := `
 	  select
 	    _id,
+	    attrs,
+	    created_at,
 	    from_id as "from.id",
 	    from_type as "from.type",
+	    indirect,
 	    to_id as "to.id",
 	    to_type as "to.type",
-	    attrs,
-	    indirect
+	    updated_at
 	  from relations
 	` + where
 

@@ -14,9 +14,9 @@ type Entity struct {
 	ID   string
 	Type string // todo enum
 
-	Attrs map[string]any
+	Attrs     map[string]any
 	CreatedAt time.Time
-	UpdatedAt *time.Time
+	UpdatedAt time.Time
 }
 
 func (e *Entity) EntityID() string {
@@ -28,7 +28,7 @@ func (e *Entity) EntityType() string {
 }
 
 type UpdateRequest struct {
-	ID string
+	ID   string
 	Type string
 
 	Attrs map[string]any
@@ -49,16 +49,15 @@ func Update(ctx context.Context, request UpdateRequest) (*Entity, error) {
 	}
 
 	if request.Attrs != nil {
-		entity.Attrs =request.Attrs
+		entity.Attrs = request.Attrs
 	}
 
 	if err := entity.Update(ctx); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("Update failed: %w", err)
 	}
 
 	return u.Ptr(toDomain(*entity)), nil
 }
-
 
 func Create(ctx context.Context, request Entity) (*Entity, error) {
 	if request.Type == "" {
@@ -87,9 +86,9 @@ func Delete(ctx context.Context, id string) error {
 
 func toDomain(e db.Entity) Entity {
 	return Entity{
-		ID:    e.ID,
-		Type:  e.Type,
-		Attrs: e.Attrs,
+		ID:        e.ID,
+		Type:      e.Type,
+		Attrs:     e.Attrs,
 		CreatedAt: e.CreatedAt,
 		UpdatedAt: e.UpdatedAt,
 	}

@@ -22,7 +22,7 @@ type Entity struct {
 	Attrs map[string]any
 
 	CreatedAt time.Time
-	UpdatedAt *time.Time
+	UpdatedAt time.Time
 }
 
 func (e *Entity) Create(ctx context.Context) error {
@@ -54,14 +54,15 @@ func (e *Entity) Update(ctx context.Context) error {
 	  update entities
 	  set
 	    updated_at = now(),
-	    attrs = $3
+	    attrs = $4
 	  where
 	    _id = $1 and
-	    _type = $2
+	    _type = $2 and
+	    updated_at = $3
 	  returning updated_at
 	`
 
-	err := pgxscan.Get(ctx, Conn, &e.UpdatedAt, query, e.ID, e.Type, e.Attrs)
+	err := pgxscan.Get(ctx, Conn, e, query, e.ID, e.Type, e.UpdatedAt, e.Attrs)
 	if err != nil {
 		return err
 	}
