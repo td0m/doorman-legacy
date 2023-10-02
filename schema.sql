@@ -7,7 +7,6 @@ create table entities(
   updated_at timestamptz not null default now(),
 
   primary key(_type, _id)
-  -- TODO: unique on json "sub" if _id starts with users/
 );
 
 create index "entities.idx-id-type" on entities(_id, _type);
@@ -62,7 +61,7 @@ begin
 end;
 $$;
 
--- on relation deleted:
+-- delete dependent relations before deleting a given relation
 create trigger trg_delete_dependencies
 before delete on relations
 for each row

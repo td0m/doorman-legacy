@@ -12,6 +12,14 @@ import (
 	"golang.org/x/exp/slices"
 )
 
+// anything not here can only be a leaf node
+var validRelations = map[string][]string{
+	"collection": {"role", "*"},
+	"role":       {"permission"},
+	"user":       {"collection", "role", "*"},
+	"permission": {},
+}
+
 type Relation struct {
 	ID    string
 	From  Entity
@@ -39,20 +47,8 @@ type ListRequest struct {
 	To   *Entity
 }
 
-// func Entity(typ, id string) string {
-// 	return typ + ":" + id
-// }
-
-// anything not here can only be a leaf node
-var validRelations = map[string][]string{
-	"collection": {"role", "*"},
-	"role":       {"permission"},
-	"user":       {"collection", "role", "*"},
-	"permission": {},
-}
-
-func canHaveAttrs(from, to string) bool {
-	return (from == "collection" || from == "user") && to != "collection"
+type UpdateRequest struct {
+	Attrs map[string]any
 }
 
 func Create(ctx context.Context, req CreateRequest) (*Relation, error) {
@@ -132,10 +128,6 @@ func Get(ctx context.Context, id string) (*Relation, error) {
 	return u.Ptr(toDomain(*dbrelation)), nil
 }
 
-type UpdateRequest struct {
-	Attrs map[string]any
-}
-
 func Update(ctx context.Context, id string, request UpdateRequest) (*Relation, error) {
 	dbrelation, err := db.Get(ctx, id)
 	if err != nil {
@@ -178,6 +170,7 @@ func entityRefToDomain(r db.EntityRef) Entity {
 	}
 }
 
+// This is where the magic happens!
 func rebuildIndirects(ctx context.Context, relation Relation, from, to Entity) error {
 	leftRelations, err := db.ListLinkedToWithDependencies(ctx, entityToDB(from))
 	if err != nil {
@@ -260,4 +253,8 @@ func rebuildIndirects(ctx context.Context, relation Relation, from, to Entity) e
 		}
 	}
 	return nil
+}
+
+func canHaveAttrs(from, to string) bool {
+	return (from == "collection" || from == "user") && to != "collection"
 }

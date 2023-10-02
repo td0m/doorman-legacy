@@ -151,10 +151,6 @@ func TestCreate(t *testing.T) {
 		require.Error(t, err)
 	})
 
-	t.Run("Fails on cyclic relation", func(t *testing.T) {
-		// TODO
-	})
-
 	t.Run("Validates entity type", func(t *testing.T) {
 		tests := []struct {
 			FromType string
@@ -221,7 +217,6 @@ func TestCreate(t *testing.T) {
 		}
 	})
 
-	// TODO: check no attributes on certain relations
 	t.Run("Only allows attributes in certain relations", func(t *testing.T) {
 		tests := []struct {
 			from    string
@@ -352,7 +347,7 @@ func TestCreate(t *testing.T) {
 							}
 							all, err := List(ctx, req)
 							require.NoError(t, err)
-							require.Equal(t, 1, len(all), "relation: %s, relations: %+v", rel.From.ID+" => "+rel.To.ID, u.Map(relations, tOnly)) // TODO: make it 1
+							require.Equal(t, 1, len(all), "relation: %s, relations: %+v", rel.From.ID+" => "+rel.To.ID, u.Map(relations, tOnly))
 
 							deps, err := db.ListDependencies(ctx, all[0].ID)
 							require.NoError(t, err)
@@ -464,6 +459,9 @@ func TestUpdate(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, dbrelation.UpdatedAt.After(dbrelation.CreatedAt))
 	require.Equal(t, in.Attrs, dbrelation.Attrs)
+
+	// TODO: ensure attributes not allowed in certain relations (like on create)
+	// TODO: ensure all indirect attributes also updated
 }
 
 func TestCreateAttributes(t *testing.T) {

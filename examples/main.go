@@ -23,13 +23,13 @@ func main() {
 	entitiesdb.Conn = pgDoorman
 	relationsdb.Conn = pgDoorman
 
-	dom, err := entities.Create(ctx, entities.Entity{Type: "user"})
+	dom, err := entities.Create(ctx, entities.CreateRequest{Type: "user"})
 	check(err)
 
-	admins, err := entities.Create(ctx, entities.Entity{Type: "collection"})
+	admins, err := entities.Create(ctx, entities.CreateRequest{Type: "collection"})
 	check(err)
 
-	post1, err := entities.Create(ctx, entities.Entity{
+	post1, err := entities.Create(ctx, entities.CreateRequest{
 		ID:   "posts/" + xid.New().String(),
 		Type: "resource",
 	})

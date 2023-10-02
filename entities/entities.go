@@ -19,12 +19,11 @@ type Entity struct {
 	UpdatedAt time.Time
 }
 
-func (e *Entity) EntityID() string {
-	return e.ID
-}
+type CreateRequest struct {
+	ID   string
+	Type string
 
-func (e *Entity) EntityType() string {
-	return e.Type
+	Attrs map[string]any
 }
 
 type UpdateRequest struct {
@@ -34,12 +33,13 @@ type UpdateRequest struct {
 	Attrs map[string]any
 }
 
-type EntityUpdate struct {
-	Attrs map[string]any
-}
-
 func Get(ctx context.Context, id, typ string) (*Entity, error) {
-	panic(3)
+	dbentity, err := db.Get(ctx, id, typ)
+	if err != nil {
+		return nil, err
+	}
+
+	return u.Ptr(mapFromDB(*dbentity)), nil
 }
 
 func Update(ctx context.Context, request UpdateRequest) (*Entity, error) {
@@ -56,10 +56,10 @@ func Update(ctx context.Context, request UpdateRequest) (*Entity, error) {
 		return nil, fmt.Errorf("Update failed: %w", err)
 	}
 
-	return u.Ptr(toDomain(*entity)), nil
+	return u.Ptr(mapFromDB(*entity)), nil
 }
 
-func Create(ctx context.Context, request Entity) (*Entity, error) {
+func Create(ctx context.Context, request CreateRequest) (*Entity, error) {
 	if request.Type == "" {
 		return nil, fmt.Errorf("type is required")
 	}
@@ -76,15 +76,18 @@ func Create(ctx context.Context, request Entity) (*Entity, error) {
 		return nil, err
 	}
 
-	request = toDomain(*dbe)
-	return &request, nil
+	return u.Ptr(mapFromDB(*dbe)), nil
 }
 
-func Delete(ctx context.Context, id string) error {
+func Delete(ctx context.Context, id, typ string) error {
+	dbentity := &db.Entity{ID: id, Type: typ}
+	if err := dbentity.Delete(ctx); err != nil{
+		return err
+	}
 	return nil
 }
 
-func toDomain(e db.Entity) Entity {
+func mapFromDB(e db.Entity) Entity {
 	return Entity{
 		ID:        e.ID,
 		Type:      e.Type,

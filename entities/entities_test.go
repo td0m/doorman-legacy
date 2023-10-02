@@ -28,21 +28,21 @@ func TestCreate(t *testing.T) {
 	ctx := context.Background()
 
 	tests := []struct {
-		in      Entity
+		in      CreateRequest
 		success bool
 	}{
-		{Entity{Type: ""}, false},
-		{Entity{Type: "no spaces"}, false},
-		{Entity{Type: "bad_characters"}, false},
-		{Entity{Type: "n0numbers"}, false},
-		{Entity{Type: "LOWERCASE"}, false},
+		{CreateRequest{Type: ""}, false},
+		{CreateRequest{Type: "no spaces"}, false},
+		{CreateRequest{Type: "bad_characters"}, false},
+		{CreateRequest{Type: "n0numbers"}, false},
+		{CreateRequest{Type: "LOWERCASE"}, false},
 
-		{Entity{Type: "foo"}, true},
-		{Entity{Type: "foo", Attrs: map[string]any{}}, true},
-		{Entity{Type: "foo", Attrs: map[string]any{"foo": "bar"}}, true},
+		{CreateRequest{Type: "foo"}, true},
+		{CreateRequest{Type: "foo", Attrs: map[string]any{}}, true},
+		{CreateRequest{Type: "foo", Attrs: map[string]any{"foo": "bar"}}, true},
 
-		{Entity{Type: "foo", ID: "path/to/resources/128"}, true},
-		{Entity{Type: "foo", ID: "no spaces"}, false},
+		{CreateRequest{Type: "foo", ID: "path/to/resources/128"}, true},
+		{CreateRequest{Type: "foo", ID: "no spaces"}, false},
 	}
 
 	for _, tt := range tests {
