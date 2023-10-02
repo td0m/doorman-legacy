@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"regexp"
+	"strings"
 	"time"
 
 	"github.com/georgysavva/scany/v2/pgxscan"
@@ -28,6 +29,8 @@ type Entity struct {
 func (e *Entity) Create(ctx context.Context) error {
 	if e.ID == "" {
 		e.ID = xid.New().String()
+	} else if strings.Contains(e.ID, " ") {
+		return errs.New(http.StatusBadRequest, "ID cannot contain spaces")
 	}
 	if e.Attrs == nil {
 		e.Attrs = map[string]any{}

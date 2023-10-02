@@ -32,17 +32,22 @@ func TestCreate(t *testing.T) {
 		success bool
 	}{
 		{Entity{Type: ""}, false},
-		{Entity{Type: "foo"}, true},
-		{Entity{Type: "foo", Attrs: map[string]any{}}, true},
-		{Entity{Type: "foo", Attrs: map[string]any{"foo": "bar"}}, true},
 		{Entity{Type: "no spaces"}, false},
 		{Entity{Type: "bad_characters"}, false},
 		{Entity{Type: "n0numbers"}, false},
 		{Entity{Type: "LOWERCASE"}, false},
+
+		{Entity{Type: "foo"}, true},
+		{Entity{Type: "foo", Attrs: map[string]any{}}, true},
+		{Entity{Type: "foo", Attrs: map[string]any{"foo": "bar"}}, true},
+
+		{Entity{Type: "foo", ID: "path/to/resources/128"}, true},
+		{Entity{Type: "foo", ID: "no spaces"}, false},
 	}
 
 	for _, tt := range tests {
 		t.Run(fmt.Sprintf("Entity: %+v", tt.in), func(t *testing.T) {
+			_ = (&db.Entity{ID: tt.in.ID, Type: tt.in.Type}).Delete(ctx)
 			res, err := Create(ctx, tt.in)
 
 			if tt.success {
@@ -68,8 +73,8 @@ func TestUpdate(t *testing.T) {
 	require.NoError(t, err)
 
 	in := UpdateRequest{
-		ID: dbentity.ID,
-		Type: dbentity.Type,
+		ID:    dbentity.ID,
+		Type:  dbentity.Type,
 		Attrs: map[string]any{"bar": true},
 	}
 	res, err := Update(ctx, in)
