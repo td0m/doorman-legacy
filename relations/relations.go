@@ -165,6 +165,14 @@ func List(ctx context.Context, r ListRequest) ([]Relation, error) {
 	return u.Map(dbrelations, toDomain), nil
 }
 
+func Delete(ctx context.Context, id string) error {
+	if err := u.Ptr(db.Relation{ID: id}).Delete(ctx); err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func toDomain(r db.Relation) Relation {
 	return Relation{
 		ID:    r.ID,

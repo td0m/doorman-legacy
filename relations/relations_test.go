@@ -9,10 +9,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/georgysavva/scany/v2/pgxscan"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/xid"
 	"github.com/stretchr/testify/require"
 	entitiesdb "github.com/td0m/poc-doorman/entities/db"
+	"github.com/td0m/poc-doorman/relations/db"
 	relationsdb "github.com/td0m/poc-doorman/relations/db"
 	"github.com/td0m/poc-doorman/u"
 	"golang.org/x/exp/slices"
@@ -219,7 +221,6 @@ func TestCreate(t *testing.T) {
 	})
 
 	t.Run("Sucess computing indirect relations", func(t *testing.T) {
-
 		u1 := Entity{ID: "u1", Type: "user"}
 		c1 := Entity{ID: "c1", Type: "collection"}
 		r1 := Entity{ID: "r1", Type: "role"}
@@ -227,7 +228,7 @@ func TestCreate(t *testing.T) {
 
 		u1c1 := Relation{From: u1, To: c1}
 		c1r1 := Relation{From: c1, To: r1}
-		r1p1:= Relation{From: r1, To: p1}
+		r1p1 := Relation{From: r1, To: p1}
 
 		type relationWithDeps struct {
 			Relation
@@ -325,6 +326,68 @@ func TestCreate(t *testing.T) {
 			})
 		}
 	})
+}
+
+func TestDelete(t *testing.T) {
+	ctx := context.Background()
+
+	rnd := xid.New().String()
+	u1 := Entity{ID: "u1:" + rnd, Type: "user"}
+	c1 := Entity{ID: "c1:" + rnd, Type: "collection"}
+	r1 := Entity{ID: "r1:" + rnd, Type: "role"}
+	p1 := Entity{ID: "p1:" +rnd, Type: "permission"}
+
+	createEntity := func(e Entity) error {
+		return u.Ptr(entitiesdb.Entity{ID: e.ID, Type: e.Type}).Create(ctx)
+	}
+
+	require.NoError(t, createEntity(u1))
+	require.NoError(t, createEntity(c1))
+	require.NoError(t, createEntity(r1))
+	require.NoError(t, createEntity(p1))
+
+	u1c1, err := Create(ctx, CreateRequest{
+		From: u1,
+		To: c1,
+	})
+	require.NoError(t, err)
+
+	c1r1, err := Create(ctx, CreateRequest{
+		From: c1,
+		To: r1,
+	})
+	require.NoError(t, err)
+
+	r1p1, err := Create(ctx, CreateRequest{
+		From: r1,
+		To: p1,
+	})
+	require.NoError(t, err)
+
+	relations, err := List(ctx, ListRequest{
+		From: &u1,
+		To: &p1,
+	})
+	require.NoError(t, err)
+	require.Equal(t, 1, len(relations))
+
+	var rows []string
+	u.Check(pgxscan.Select(ctx, db.Conn, &rows, `
+		select relation_id from dependencies where dependency_id=$1
+	`, u1c1.ID))
+	fmt.Println(rows)
+
+	fmt.Println(u1c1, c1r1, r1p1)
+	require.NoError(t, Delete(ctx, u1c1.ID))
+	require.NoError(t, Delete(ctx, c1r1.ID))
+	require.NoError(t, Delete(ctx, r1p1.ID))
+
+	relations, err = List(ctx, ListRequest{
+		From: &u1,
+		To: &p1,
+	})
+	require.NoError(t, err)
+	require.Equal(t, 0, len(relations))
 }
 
 func permutations[T any](ts []T) [][]T {

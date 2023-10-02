@@ -37,6 +37,12 @@ type RelationFilter struct {
 	Indirect *bool
 }
 
+func (r *Relation) Delete(ctx context.Context) error {
+	query := `delete from relations where _id=$1`
+	_, err := Conn.Exec(ctx, query, r.ID)
+	return err
+}
+
 func (r *Relation) Create(ctx context.Context) error {
 	if r.ID == "" {
 		r.ID = xid.New().String()
