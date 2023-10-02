@@ -186,6 +186,10 @@ func TestCreate(t *testing.T) {
 			{"user", "resource", true},
 			{"user", "role", true},
 			{"user", "user", false},
+
+			{"user", "foobar", true},
+			{"collection", "foobar", true},
+			{"role", "foobar", false},
 		}
 
 		for _, tt := range tests {
@@ -220,17 +224,25 @@ func TestCreate(t *testing.T) {
 	// TODO: check no attributes on certain relations
 	t.Run("Only allows attributes in certain relations", func(t *testing.T) {
 		tests := []struct {
-			from string
-			to   string
+			from    string
+			to      string
 			success bool
 		}{
 			{"user", "collection", false},
 			{"role", "permission", false},
-			{"collection", "steven", false},
+			{"user", "permission", false},
+
+			{"collection", "role", true},
+			{"user", "role", true},
+			{"user", "role", true},
+
+			{"user", "post", true},
+			{"collection", "foo", true},
+			{"collection", "bar", true},
 		}
 
 		for _, tt := range tests {
-			t.Run(fmt.Sprintf("%s %s", tt.from, tt.to), func(t *testing.T) {
+			t.Run(fmt.Sprintf("%s %s %v", tt.from, tt.to, tt.success), func(t *testing.T) {
 				from := &entitiesdb.Entity{ID: xid.New().String(), Type: tt.from}
 				require.NoError(t, from.Create(ctx))
 
@@ -238,8 +250,8 @@ func TestCreate(t *testing.T) {
 				require.NoError(t, to.Create(ctx))
 
 				in := CreateRequest{
-					From: Entity{ID: from.ID, Type: from.Type},
-					To: Entity{ID: to.ID, Type: to.Type},
+					From:  Entity{ID: from.ID, Type: from.Type},
+					To:    Entity{ID: to.ID, Type: to.Type},
 					Attrs: map[string]any{"foo": true},
 				}
 				_, err := Create(ctx, in)
@@ -317,7 +329,6 @@ func TestCreate(t *testing.T) {
 								From: Entity{ID: id(pair.From.ID), Type: pair.From.Type},
 								To:   Entity{ID: id(pair.To.ID), Type: pair.To.Type},
 							}
-							fmt.Println("creating", pair.From.ID, pair.To.ID)
 							_, err := Create(ctx, req)
 							require.NoError(t, err)
 

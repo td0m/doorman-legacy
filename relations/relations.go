@@ -43,16 +43,16 @@ type ListRequest struct {
 // 	return typ + ":" + id
 // }
 
+// anything not here can only be a leaf node
 var validRelations = map[string][]string{
-	"collection": {"role", "resource"},
-	"permission": {},
-	"resource":   {},
+	"collection": {"role", "*"},
 	"role":       {"permission"},
-	"user":       {"collection", "role", "resource"},
+	"user":       {"collection", "role", "*"},
+	"permission": {},
 }
 
 func canHaveAttrs(from, to string) bool {
-	return from == "collection" || from == "identity" && to != "collection"
+	return (from == "collection" || from == "user") && to != "collection"
 }
 
 func Create(ctx context.Context, req CreateRequest) (*Relation, error) {
@@ -71,7 +71,12 @@ func Create(ctx context.Context, req CreateRequest) (*Relation, error) {
 		return nil, errs.New(http.StatusBadRequest, "invalid relation")
 	}
 
-	if canConnect := slices.Contains(canConnectTo, req.To.Type); !canConnect {
+	to := req.To.Type
+	if _, toTypeIsStrict := validRelations[req.To.Type]; !toTypeIsStrict {
+		to = "*"
+	}
+
+	if canConnect := slices.Contains(canConnectTo, to); !canConnect {
 		return nil, errs.New(http.StatusBadRequest, "cannot connect to this type")
 	}
 

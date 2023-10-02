@@ -48,8 +48,6 @@ create table dependencies(
   constraint "dependencies.fkey-dependency_id" foreign key (dependency_id) references relations(_id)
 );
 
--- TODO: ensure no cycles, no depending on itself OR linking to itself
-
 -- removes relations that depend on the one being deleted
 create or replace function remove_dependents()
 returns trigger
