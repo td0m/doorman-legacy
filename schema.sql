@@ -3,6 +3,9 @@ create table entities(
   _type text not null,
   attrs jsonb not null,
 
+  created_at timestamptz not null default now(),
+  updated_at timestamptz,
+
   primary key(_type, _id)
   -- TODO: unique on json "sub" if _id starts with users/
 );
@@ -18,6 +21,9 @@ create table relations(
   to_id text not null,
   to_type text not null,
   indirect bool not null,
+
+  created_at timestamptz not null default now(),
+  updated_at timestamptz,
 
   constraint "relations.fkey-from" foreign key (from_type, from_id) references entities(_type, _id),
   constraint "relations.fkey-to" foreign key (to_type, to_id) references entities(_type, _id)

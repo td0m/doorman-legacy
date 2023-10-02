@@ -3,9 +3,11 @@ package entities
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/rs/xid"
 	"github.com/td0m/poc-doorman/entities/db"
+	"github.com/td0m/poc-doorman/u"
 )
 
 type Entity struct {
@@ -13,6 +15,8 @@ type Entity struct {
 	Type string // todo enum
 
 	Attrs map[string]any
+	CreatedAt time.Time
+	UpdatedAt *time.Time
 }
 
 func (e *Entity) EntityID() string {
@@ -23,36 +27,58 @@ func (e *Entity) EntityType() string {
 	return e.Type
 }
 
+type UpdateRequest struct {
+	ID string
+	Type string
+
+	Attrs map[string]any
+}
+
 type EntityUpdate struct {
 	Attrs map[string]any
 }
 
-func Get(ctx context.Context, eType, id string) (*Entity, error) {
+func Get(ctx context.Context, id, typ string) (*Entity, error) {
 	panic(3)
 }
 
-func Update(ctx context.Context, eType, id string, changes EntityUpdate) (*Entity, error) {
-	panic(3)
+func Update(ctx context.Context, request UpdateRequest) (*Entity, error) {
+	entity, err := db.Get(ctx, request.ID, request.Type)
+	if err != nil {
+		return nil, err
+	}
+
+	if request.Attrs != nil {
+		entity.Attrs =request.Attrs
+	}
+
+	if err := entity.Update(ctx); err != nil {
+		return nil, err
+	}
+
+	return u.Ptr(toDomain(*entity)), nil
 }
 
-func Create(ctx context.Context, e Entity) (*Entity, error) {
-	if e.Type == "" {
+
+func Create(ctx context.Context, request Entity) (*Entity, error) {
+	if request.Type == "" {
 		return nil, fmt.Errorf("type is required")
 	}
-	if e.ID == "" {
-		e.ID = xid.New().String()
+	if request.ID == "" {
+		request.ID = xid.New().String()
 	}
 	dbe := &db.Entity{
-		ID:   e.ID,
-		Type: e.Type,
+		ID:    request.ID,
+		Type:  request.Type,
+		Attrs: request.Attrs,
 	}
 
 	if err := dbe.Create(ctx); err != nil {
 		return nil, err
 	}
 
-	e = toDomain(*dbe)
-	return &e, nil
+	request = toDomain(*dbe)
+	return &request, nil
 }
 
 func Delete(ctx context.Context, id string) error {
@@ -61,7 +87,10 @@ func Delete(ctx context.Context, id string) error {
 
 func toDomain(e db.Entity) Entity {
 	return Entity{
-		ID:   e.ID,
-		Type: e.Type,
+		ID:    e.ID,
+		Type:  e.Type,
+		Attrs: e.Attrs,
+		CreatedAt: e.CreatedAt,
+		UpdatedAt: e.UpdatedAt,
 	}
 }
