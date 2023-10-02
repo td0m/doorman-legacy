@@ -14,7 +14,7 @@ import (
 
 // anything not here can only be a leaf node
 var validRelations = map[string][]string{
-	"collection": {"role", "*"},
+	"collection": {"collection", "role", "*"},
 	"role":       {"permission"},
 	"user":       {"collection", "role", "*"},
 	"permission": {},

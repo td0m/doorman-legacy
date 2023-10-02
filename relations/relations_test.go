@@ -157,7 +157,7 @@ func TestCreate(t *testing.T) {
 			ToType   string
 			Success  bool
 		}{
-			{"collection", "collection", false},
+			{"collection", "collection", true},
 			{"collection", "permission", false},
 			{"collection", "resource", true},
 			{"collection", "role", true},
