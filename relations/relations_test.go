@@ -15,6 +15,7 @@ import (
 	entitiesdb "github.com/td0m/poc-doorman/entities/db"
 	relationsdb "github.com/td0m/poc-doorman/relations/db"
 	"github.com/td0m/poc-doorman/u"
+	"golang.org/x/exp/slices"
 )
 
 const n int = 1_000_000
@@ -218,53 +219,106 @@ func TestCreate(t *testing.T) {
 	})
 
 	t.Run("Sucess computing indirect relations", func(t *testing.T) {
-		tests := [][]Entity{
-			{{ID: "u1", Type: "user"}, {ID: "c1", Type: "collection"}, {ID: "r1", Type: "role"}, {ID: "p1", Type: "permission"}},
-			// {"user", "collection", "resource"},
+
+		u1 := Entity{ID: "u1", Type: "user"}
+		c1 := Entity{ID: "c1", Type: "collection"}
+		r1 := Entity{ID: "r1", Type: "role"}
+		p1 := Entity{ID: "p1", Type: "permission"}
+
+		u1c1 := Relation{From: u1, To: c1}
+		c1r1 := Relation{From: c1, To: r1}
+		r1p1:= Relation{From: r1, To: p1}
+
+		type relationWithDeps struct {
+			Relation
+			Deps []Relation
 		}
-		for _, tt := range tests {
-			t.Run(fmt.Sprintf("Path: %+v", tt), func(t *testing.T) {
-				permutations := permutations(makeRelations(tt))
-				for _, pairs := range permutations {
+
+		tests := []struct {
+			Entities            []Entity
+			Relations           []Relation
+			AdditionalRelations []relationWithDeps
+		}{
+			{
+				Entities:  []Entity{u1, c1, r1},
+				Relations: []Relation{u1c1, c1r1},
+				AdditionalRelations: []relationWithDeps{
+					{Relation: Relation{From: u1, To: r1}, Deps: []Relation{u1c1, c1r1}},
+				},
+			},
+			{
+				Entities:  []Entity{u1, c1, r1, p1},
+				Relations: []Relation{u1c1, c1r1, r1p1},
+				AdditionalRelations: []relationWithDeps{
+					{Relation: Relation{From: u1, To: r1}, Deps: []Relation{u1c1, c1r1}},
+					{Relation: Relation{From: c1, To: p1}, Deps: []Relation{c1r1, r1p1}},
+					{Relation: Relation{From: u1, To: p1}, Deps: []Relation{u1c1, c1r1, r1p1}},
+				},
+			},
+		}
+		for i, tt := range tests {
+			t.Run(fmt.Sprintf("i %+v", i), func(t *testing.T) {
+				permutations := permutations(tt.Relations)
+				for _, relations := range permutations {
 					// Insert them from left to right
-					t.Run(fmt.Sprintf("Permutation %+v", pairs), func(t *testing.T) {
+					t.Run(fmt.Sprintf("Relations %+v", relations), func(t *testing.T) {
 						rnd := xid.New().String()
-						for i := range tt {
-							e := tt[i]
-							tt[i] = e
+						id := func(eid string) string {
+							return eid + ":" + rnd
+						}
+						relationId := func(r Relation) string {
+							return id(r.From.ID) + " => " + id(r.To.ID)
+						}
+						for i := range tt.Entities {
+							e := tt.Entities[i]
 							en := &entitiesdb.Entity{
 								Type: e.Type,
-								ID:   e.ID + ":" + rnd,
+								ID:   id(e.ID),
 							}
 							require.NoError(t, en.Create(ctx))
 						}
 
-						for _, pair := range pairs {
+						for _, pair := range relations {
 							req := CreateRequest{
-								From: Entity{ID: pair.From.ID + ":" + rnd, Type: pair.From.Type},
-								To:   Entity{ID: pair.To.ID + ":" + rnd, Type: pair.To.Type},
+								ID:   relationId(pair),
+								From: Entity{ID: id(pair.From.ID), Type: pair.From.Type},
+								To:   Entity{ID: id(pair.To.ID), Type: pair.To.Type},
 							}
+							fmt.Println("creating", pair.From.ID, pair.To.ID)
 							_, err := Create(ctx, req)
 							require.NoError(t, err)
+
+							res, err := List(ctx, ListRequest{
+								From: &req.From,
+								To:   &req.To,
+							})
+							require.NoError(t, err)
+							require.Equal(t, 1, len(res))
+							// todo: check exists
 						}
 
 						tOnly := func(t Relation) string {
 							return t.From.ID + "->" + t.To.ID
 						}
 
-						for a := range tt {
-							for b := range tt {
-								if b <= a {
-									continue
-								}
-
-								all, err := List(ctx, ListRequest{
-									From: &Entity{ID: tt[a].ID + ":" + rnd, Type: tt[a].Type},
-									To:   &Entity{ID: tt[b].ID + ":" + rnd, Type: tt[b].Type},
-								})
-								require.NoError(t, err)
-								require.Equal(t, 1, len(all), "relation: %s, requests: %+v", tt[a].ID+" => "+tt[b].ID, u.Map(pairs, tOnly)) // TODO: make it 1
+						for _, rel := range tt.AdditionalRelations {
+							req := ListRequest{
+								From: &Entity{ID: id(rel.From.ID), Type: rel.From.Type},
+								To:   &Entity{ID: id(rel.To.ID), Type: rel.To.Type},
 							}
+							all, err := List(ctx, req)
+							require.NoError(t, err)
+							require.Equal(t, 1, len(all), "relation: %s, relations: %+v", rel.From.ID+" => "+rel.To.ID, u.Map(relations, tOnly)) // TODO: make it 1
+
+							deps, err := relationsdb.ListDependencies(ctx, all[0].ID)
+							require.NoError(t, err)
+
+							expectedDeps := u.Map(rel.Deps, relationId)
+
+							slices.Sort(expectedDeps)
+							slices.Sort(deps)
+
+							require.Equal(t, expectedDeps, deps)
 						}
 					})
 				}

@@ -64,60 +64,78 @@ func Create(ctx context.Context, req CreateRequest) (*Relation, error) {
 		return nil, errs.New(http.StatusBadRequest, "cannot connect to this type")
 	}
 
-	if err := rebuildIndirects(ctx, req.From, req.To); err != nil {
-		return nil, fmt.Errorf("failed to rebuild indirects: %w", err)
-	}
-
 	if err := dbrelation.Create(ctx); err != nil {
 		return nil, fmt.Errorf("db failed to create: %w", err)
 	}
 
 	relation := toDomain(*dbrelation)
 
+	if err := rebuildIndirects(ctx, relation, req.From, req.To); err != nil {
+		return nil, fmt.Errorf("failed to rebuild indirects: %w", err)
+	}
+
 	return &relation, nil
 }
 
-func rebuildIndirects(ctx context.Context, from, to Entity) error {
-	fmt.Println("rebuild:", from.Type, "=>", to.Type)
-
-	leftRelations, err := db.ListRelations(ctx, db.RelationFilter{
-		ToID:   &from.ID,
-		ToType: &from.Type,
-	})
+func rebuildIndirects(ctx context.Context, relation Relation, from, to Entity) error {
+	leftRelations, err := db.ListLinkedToWithDependencies(ctx, entityToDB(from))
 	if err != nil {
 		return fmt.Errorf("failed to list relations to the left: %w", err)
 	}
-	left := make([]Entity, len(leftRelations))
-	for i, r := range leftRelations {
-		left[i] = entityRefToDomain(r.From)
-	}
-	left = append(left, from)
-
-	rightRelations, err := db.ListRelations(ctx, db.RelationFilter{
-		FromID:   &to.ID,
-		FromType: &to.Type,
+	leftRelations = append(leftRelations, db.RelationWithDeps{
+		Relation: db.Relation{From: entityToDB(from)},
 	})
+
+	rightRelations, err := db.ListLinkedFromWithDependencies(ctx, entityToDB(to))
 	if err != nil {
 		return fmt.Errorf("failed to list relations to the right: %w", err)
 	}
-	right := make([]Entity, len(rightRelations))
-	for i, r := range rightRelations {
-		right[i] = entityRefToDomain(r.To)
-	}
-	right = append(right, to)
+	rightRelations = append(rightRelations, db.RelationWithDeps{
+		Relation: db.Relation{To: entityToDB(to)},
+	})
 
-	for _, l := range left {
-		for _, r := range right {
-			if l == from && r == to {
+	for i, l := range leftRelations {
+		for j, r := range rightRelations {
+			if i == len(leftRelations)-1 && j == len(rightRelations)-1 {
 				continue
 			}
+
 			rel := &db.Relation{
-				From:     entityToDB(l),
-				To:       entityToDB(r),
+				From:     l.From,
+				To:       r.To,
 				Indirect: true,
 			}
 			if err := rel.Create(ctx); err != nil {
 				return fmt.Errorf("failed to create rel: %w", err)
+			}
+
+			deps := []string{}
+			if l.ID != "" {
+				if len(l.DependencyIDs) == 0 {
+					deps = append(deps, l.ID) // Direct! Add as dependency
+				} else {
+					deps = append(deps, l.DependencyIDs...) // Indirect, so copy dependencies!
+				}
+			}
+
+			deps = append(deps, relation.ID)
+
+			if r.ID != "" {
+				if len(r.DependencyIDs) == 0 {
+					deps = append(deps, r.ID) // Direct! Add as dependency
+				} else {
+					deps = append(deps, r.DependencyIDs...) // Indirect, so copy dependencies!
+				}
+			}
+
+			for _, dep := range deps {
+				dbdep := &db.Dependency{
+					RelationID:   rel.ID,
+					DependencyID: dep,
+				}
+				if err := dbdep.Create(ctx); err != nil {
+					return fmt.Errorf("failed to create dep (%+v): %w", dbdep, err)
+				}
 			}
 		}
 	}

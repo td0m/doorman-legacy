@@ -23,12 +23,11 @@ func main() {
 	entitiesdb.Conn = pgDoorman
 	relationsdb.Conn = pgDoorman
 
-	dom, err := entities.Create(ctx, entities.Entity{
-		Type: "user",
-	})
+	dom, err := entities.Create(ctx, entities.Entity{Type: "user"})
 	check(err)
 
-	fmt.Println("dom", dom)
+	admins, err := entities.Create(ctx, entities.Entity{Type: "collection"})
+	check(err)
 
 	post1, err := entities.Create(ctx, entities.Entity{
 		ID:   "posts/" + xid.New().String(),
@@ -36,28 +35,25 @@ func main() {
 	})
 	check(err)
 
-	fmt.Println("post", post1)
-
-	r, err := relations.Create(ctx, relations.CreateRequest{
+	_, err = relations.Create(ctx, relations.CreateRequest{
 		From: relations.Entity{ID: dom.ID, Type: dom.Type},
+		To: relations.Entity{ID: admins.ID, Type: admins.Type},
+	})
+
+	check(err)
+	_, err = relations.Create(ctx, relations.CreateRequest{
+		From: relations.Entity{ID: admins.ID, Type: admins.Type},
 		To:   relations.Entity{ID: post1.ID, Type: post1.Type},
 	})
 	check(err)
-	fmt.Println(r)
-
-	r2, err := relations.Create(ctx, relations.CreateRequest{
-		From: relations.Entity{ID: dom.ID, Type: dom.Type},
-		To:   relations.Entity{ID: post1.ID, Type: post1.Type},
-	})
-	check(err)
-	fmt.Println(r2)
 
 	rs, err := relations.List(ctx, relations.ListRequest{
 		From: &relations.Entity{ID: dom.ID, Type: dom.Type},
 		To:   &relations.Entity{ID: post1.ID, Type: post1.Type},
 	})
 	check(err)
-	fmt.Println("relations")
+
+	fmt.Println("relations", len(rs))
 	for _, r := range rs {
 		fmt.Println(r.ID)
 	}

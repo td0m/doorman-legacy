@@ -19,6 +19,11 @@ type Relation struct {
 	Indirect bool
 }
 
+type RelationWithDeps struct {
+	Relation
+	DependencyIDs []string `db:"dependency_ids"`
+}
+
 type EntityRef struct {
 	ID   string
 	Type string
@@ -51,6 +56,52 @@ func (r *Relation) Create(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+func ListLinkedToWithDependencies(ctx context.Context, e EntityRef) ([]RelationWithDeps, error) {
+	query := `
+	  select
+	    _id,
+	    from_id as "from.id",
+	    from_type as "from.type",
+	    to_id as "to.id",
+	    to_type as "to.type",
+	    attrs,
+	    indirect,
+	    array(select dependency_id from dependencies where relation_id = _id)::text[] as dependency_ids
+	  from relations
+	  where
+	    to_type = $1 and to_id = $2
+	`
+
+	rs := []RelationWithDeps{}
+	if err := pgxscan.Select(ctx, Conn, &rs, query, e.Type, e.ID); err != nil {
+		return nil, err
+	}
+	return rs, nil
+}
+
+func ListLinkedFromWithDependencies(ctx context.Context, e EntityRef) ([]RelationWithDeps, error) {
+	query := `
+	  select
+	    _id,
+	    from_id as "from.id",
+	    from_type as "from.type",
+	    to_id as "to.id",
+	    to_type as "to.type",
+	    attrs,
+	    indirect,
+	    array(select dependency_id from dependencies where relation_id = _id)::text[] as dependency_ids
+	  from relations
+	  where
+	    from_type = $1 and from_id = $2
+	`
+
+	rs := []RelationWithDeps{}
+	if err := pgxscan.Select(ctx, Conn, &rs, query, e.Type, e.ID); err != nil {
+		return nil, err
+	}
+	return rs, nil
 }
 
 func ListRelations(ctx context.Context, f RelationFilter) ([]Relation, error) {

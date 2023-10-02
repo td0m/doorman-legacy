@@ -31,3 +31,12 @@ on relations(from_type, from_id);
 
 create index "relations.idx-to"
 on relations(to_type, to_id);
+
+create table dependencies(
+  relation_id text not null references relations(_id),
+  dependency_id text not null references relations(_id),
+
+  primary key(relation_id, dependency_id)
+);
+
+-- TODO: ensure no cycles, no depending on itself OR linking to itself
