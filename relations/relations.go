@@ -21,10 +21,10 @@ var validRelations = map[string][]string{
 }
 
 type Relation struct {
-	ID    string
-	From  Entity
-	To    Entity
-	Attrs map[string]any
+	ID   string
+	From Entity
+	To   Entity
+	Name *string
 
 	CreatedAt time.Time
 	UpdatedAt time.Time
@@ -36,10 +36,10 @@ type Entity struct {
 }
 
 type CreateRequest struct {
-	ID    string
-	From  Entity
-	To    Entity
-	Attrs map[string]any
+	ID   string
+	From Entity
+	To   Entity
+	Name *string
 }
 
 type ListRequest struct {
@@ -48,18 +48,18 @@ type ListRequest struct {
 }
 
 type UpdateRequest struct {
-	Attrs map[string]any
+	Name *string
 }
 
 func Create(ctx context.Context, req CreateRequest) (*Relation, error) {
-	if req.Attrs != nil && !canHaveAttrs(req.From.Type, req.To.Type) {
-		return nil, errs.New(http.StatusBadRequest, "cannot set attributes for this relation: invalid types")
+	if req.Name != nil && !canHaveName(req.From.Type, req.To.Type) {
+		return nil, errs.New(http.StatusBadRequest, "cannot set name for this relation: invalid types")
 	}
 	dbrelation := &db.Relation{
-		ID:    req.ID,
-		From:  entityToDB(req.From),
-		To:    entityToDB(req.To),
-		Attrs: req.Attrs,
+		ID:   req.ID,
+		From: entityToDB(req.From),
+		To:   entityToDB(req.To),
+		Name: req.Name,
 	}
 
 	canConnectTo, ok := validRelations[req.From.Type]
@@ -134,8 +134,8 @@ func Update(ctx context.Context, id string, request UpdateRequest) (*Relation, e
 		return nil, err
 	}
 
-	if request.Attrs != nil {
-		dbrelation.Attrs = request.Attrs
+	if request.Name != nil {
+		dbrelation.Name = request.Name
 	}
 
 	if err := dbrelation.Update(ctx); err != nil {
@@ -150,7 +150,7 @@ func toDomain(r db.Relation) Relation {
 		ID:        r.ID,
 		From:      entityRefToDomain(r.From),
 		To:        entityRefToDomain(r.To),
-		Attrs:     r.Attrs,
+		Name:      r.Name,
 		CreatedAt: r.CreatedAt,
 		UpdatedAt: r.UpdatedAt,
 	}
@@ -188,18 +188,18 @@ func rebuildIndirects(ctx context.Context, relation Relation, from, to Entity) e
 		Relation: db.Relation{To: entityToDB(to)},
 	})
 
-	// Derrive attributes if set by any of the relations
-	var attrs map[string]any
+	// Derrive name if set by any of the relations
+	var name *string
 	for _, rel := range leftRelations {
-		if rel.Attrs != nil {
-			attrs = rel.Attrs
+		if rel.Name != nil {
+			name = rel.Name
 			break
 		}
 	}
-	if attrs == nil {
+	if name == nil {
 		for _, rel := range rightRelations {
-			if rel.Attrs != nil {
-				attrs = rel.Attrs
+			if rel.Name != nil {
+				name = rel.Name
 				break
 			}
 		}
@@ -216,7 +216,7 @@ func rebuildIndirects(ctx context.Context, relation Relation, from, to Entity) e
 				From:     l.From,
 				To:       r.To,
 				Indirect: true,
-				Attrs:    attrs,
+				Name:     name,
 			}
 			if err := rel.Create(ctx); err != nil {
 				return fmt.Errorf("failed to create rel: %w", err)
@@ -255,6 +255,6 @@ func rebuildIndirects(ctx context.Context, relation Relation, from, to Entity) e
 	return nil
 }
 
-func canHaveAttrs(from, to string) bool {
+func canHaveName(from, to string) bool {
 	return (from == "collection" || from == "user") && to != "collection"
 }

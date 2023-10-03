@@ -51,7 +51,15 @@ entities.Create(ctx, entities.CreateRequest{
 relations.Create(ctx, relations.CreateRequest{
     From: relations.Entity{ID: "alice", Type: "user"},
     To: relations.Entity{ID: "1", Type: "order"},
-    Attrs: map[string]any{"owner": true},
+    Name: "owner",
+})
+```
+
+```go
+relations.Check(ctx, relations.CheckRequest{
+    From: relations.Entity{ID: "alice", Type: "user"},
+    To: relations.Entity{ID: "1", Type: "order"},
+    Name: "owner",
 })
 ```
 

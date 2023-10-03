@@ -16,7 +16,7 @@ type Relation struct {
 	ID       string    `db:"_id"`
 	From     EntityRef `db:"from"`
 	To       EntityRef `db:"to"`
-	Attrs    map[string]any
+	Name     *string
 	Indirect bool
 
 	CreatedAt time.Time
@@ -45,7 +45,7 @@ func Get(ctx context.Context, id string) (*Relation, error) {
 	query := `
 	  select
 	    _id,
-	    attrs,
+	    name,
 	    created_at,
 	    from_id as "from.id",
 	    from_type as "from.type",
@@ -70,20 +70,21 @@ func (r *Relation) Update(ctx context.Context) error {
 	  update relations
 	  set
 	    updated_at = now(),
-	    attrs = $3
+	    name = $3
 	  where
 	    _id = $1 and
 	    updated_at = $2
 	  returning updated_at
 	`
 
-	err := pgxscan.Get(ctx, Conn, r, query, r.ID, r.UpdatedAt, r.Attrs)
+	err := pgxscan.Get(ctx, Conn, r, query, r.ID, r.UpdatedAt, r.Name)
 	if err != nil {
 		return err
 	}
 
 	return nil
 }
+
 func (r *Relation) Delete(ctx context.Context) error {
 	query := `delete from relations where _id=$1`
 	_, err := Conn.Exec(ctx, query, r.ID)
@@ -94,16 +95,16 @@ func (r *Relation) Create(ctx context.Context) error {
 	if r.ID == "" {
 		r.ID = xid.New().String()
 	}
-	if len(r.Attrs) == 0 {
-		r.Attrs = nil
+	if r.Name != nil && len(*r.Name) == 0 {
+		r.Name = nil
 	}
 
 	query := `
-	  insert into relations(_id, from_id, from_type, to_id, to_type, attrs, indirect)
+	  insert into relations(_id, from_id, from_type, to_id, to_type, name, indirect)
 	  values($1, $2, $3, $4, $5, $6, $7)
 	`
 
-	_, err := Conn.Exec(ctx, query, r.ID, r.From.ID, r.From.Type, r.To.ID, r.To.Type, r.Attrs, r.Indirect)
+	_, err := Conn.Exec(ctx, query, r.ID, r.From.ID, r.From.Type, r.To.ID, r.To.Type, r.Name, r.Indirect)
 	if err != nil {
 		return err
 	}
@@ -115,7 +116,7 @@ func ListLinkedToWithDependencies(ctx context.Context, e EntityRef) ([]RelationW
 	query := `
 	  select
 	    _id,
-	    attrs,
+	    name,
 	    created_at,
 	    from_id as "from.id",
 	    from_type as "from.type",
@@ -140,7 +141,7 @@ func ListLinkedFromWithDependencies(ctx context.Context, e EntityRef) ([]Relatio
 	query := `
 	  select
 	    _id,
-	    attrs,
+	    name,
 	    created_at,
 	    from_id as "from.id",
 	    from_type as "from.type",
@@ -166,7 +167,7 @@ func ListRelations(ctx context.Context, f RelationFilter) ([]Relation, error) {
 	query := `
 	  select
 	    _id,
-	    attrs,
+	    name,
 	    created_at,
 	    from_id as "from.id",
 	    from_type as "from.type",

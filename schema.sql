@@ -12,9 +12,10 @@ create table entities(
 create index "entities.idx-id-type" on entities(_id, _type);
 
 -- directed graph
+-- todo: consider another table for all "caches"
 create table relations(
   _id text primary key,
-  attrs jsonb,
+  name text not null,
   from_id text not null,
   from_type text not null,
   to_id text not null,

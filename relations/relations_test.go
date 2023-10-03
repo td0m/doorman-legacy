@@ -48,7 +48,7 @@ func setupSampleData() {
 		query := strings.Builder{}
 
 		query.WriteString(`
-	  insert into relations(_id, from_id, from_type, to_id, to_type, attrs)
+	  insert into relations(_id, from_id, from_type, to_id, to_type, name)
           values
 	`)
 		m := 1000
@@ -133,7 +133,7 @@ func TestCreate(t *testing.T) {
 		require.Equal(t, req.From.Type, relation.From.Type)
 		require.Equal(t, req.To.ID, relation.To.ID)
 		require.Equal(t, req.To.Type, relation.To.Type)
-		require.Equal(t, req.Attrs, relation.Attrs)
+		require.Equal(t, req.Name, relation.Name)
 	})
 
 	t.Run("Failure on missing \"from\" entity", func(t *testing.T) {
@@ -217,7 +217,7 @@ func TestCreate(t *testing.T) {
 		}
 	})
 
-	t.Run("Only allows attributes in certain relations", func(t *testing.T) {
+	t.Run("Only allows names in certain relations", func(t *testing.T) {
 		tests := []struct {
 			from    string
 			to      string
@@ -245,9 +245,9 @@ func TestCreate(t *testing.T) {
 				require.NoError(t, to.Create(ctx))
 
 				in := CreateRequest{
-					From:  Entity{ID: from.ID, Type: from.Type},
-					To:    Entity{ID: to.ID, Type: to.Type},
-					Attrs: map[string]any{"foo": true},
+					From: Entity{ID: from.ID, Type: from.Type},
+					To:   Entity{ID: to.ID, Type: to.Type},
+					Name: u.Ptr("foo"),
 				}
 				_, err := Create(ctx, in)
 				if tt.success {
@@ -448,23 +448,21 @@ func TestUpdate(t *testing.T) {
 	// Update the relation
 
 	in := UpdateRequest{
-		Attrs: map[string]any{"bar": true},
+		Name: u.Ptr("bar"),
 	}
 	res, err := Update(ctx, dbrelation.ID, in)
 	require.NoError(t, err)
 	require.True(t, res.UpdatedAt.After(dbrelation.CreatedAt))
-	require.Equal(t, in.Attrs, res.Attrs)
+	require.Equal(t, in.Name, res.Name)
 
 	dbrelation, err = db.Get(ctx, dbrelation.ID)
 	require.NoError(t, err)
 	require.True(t, dbrelation.UpdatedAt.After(dbrelation.CreatedAt))
-	require.Equal(t, in.Attrs, dbrelation.Attrs)
-
-	// TODO: ensure attributes not allowed in certain relations (like on create)
-	// TODO: ensure all indirect attributes also updated
+	require.Equal(t, in.Name, dbrelation.Name)
+	// TODO: ensure all indirect names also updated
 }
 
-func TestCreateAttributes(t *testing.T) {
+func TestCreateNamed(t *testing.T) {
 	ctx := context.Background()
 
 	rnd := xid.New().String()
@@ -489,9 +487,9 @@ func TestCreateAttributes(t *testing.T) {
 	require.NoError(t, err)
 
 	c1r1, err := Create(ctx, CreateRequest{
-		From:  c1,
-		To:    r1,
-		Attrs: map[string]any{"foo": true},
+		From: c1,
+		To:   r1,
+		Name: u.Ptr("foo"),
 	})
 	require.NoError(t, err)
 
@@ -507,7 +505,7 @@ func TestCreateAttributes(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Equal(t, 1, len(u1p1s))
-	require.Equal(t, c1r1.Attrs, u1p1s[0].Attrs)
+	require.Equal(t, c1r1.Name, u1p1s[0].Name)
 	fmt.Println(u1c1, c1r1, r1p1)
 }
 
