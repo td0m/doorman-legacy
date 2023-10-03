@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"time"
 
 	"github.com/td0m/poc-doorman/errs"
 	"github.com/td0m/poc-doorman/relations/db"
@@ -25,9 +24,6 @@ type Relation struct {
 	From Entity
 	To   Entity
 	Name *string
-
-	CreatedAt time.Time
-	UpdatedAt time.Time
 }
 
 type Entity struct {
@@ -80,10 +76,15 @@ func Create(ctx context.Context, req CreateRequest) (*Relation, error) {
 		return nil, fmt.Errorf("db failed to create: %w", err)
 	}
 
+	dbrelation.Cache = true
+	if err := dbrelation.Create(ctx); err != nil {
+		return nil, fmt.Errorf("db failed to create cache: %w", err)
+	}
+
 	relation := toDomain(*dbrelation)
 
-	if err := rebuildIndirects(ctx, relation, req.From, req.To); err != nil {
-		return nil, fmt.Errorf("failed to rebuild indirects: %w", err)
+	if err := rebuildCache(ctx, relation, req.From, req.To); err != nil {
+		return nil, fmt.Errorf("failed to rebuild cache: %w", err)
 	}
 
 	return &relation, nil
@@ -104,7 +105,7 @@ func List(ctx context.Context, r ListRequest) ([]Relation, error) {
 		filter.ToType = &r.To.Type
 	}
 
-	dbrelations, err := db.ListRelations(ctx, filter)
+	dbrelations, err := db.ListRelations(ctx, filter, true) // todo: use cache prop, true by default
 	if err != nil {
 		return nil, err
 	}
@@ -128,31 +129,12 @@ func Get(ctx context.Context, id string) (*Relation, error) {
 	return u.Ptr(toDomain(*dbrelation)), nil
 }
 
-func Update(ctx context.Context, id string, request UpdateRequest) (*Relation, error) {
-	dbrelation, err := db.Get(ctx, id)
-	if err != nil {
-		return nil, err
-	}
-
-	if request.Name != nil {
-		dbrelation.Name = request.Name
-	}
-
-	if err := dbrelation.Update(ctx); err != nil {
-		return nil, fmt.Errorf("Update failed: %w", err)
-	}
-
-	return u.Ptr(toDomain(*dbrelation)), nil
-}
-
 func toDomain(r db.Relation) Relation {
 	return Relation{
-		ID:        r.ID,
-		From:      entityRefToDomain(r.From),
-		To:        entityRefToDomain(r.To),
-		Name:      r.Name,
-		CreatedAt: r.CreatedAt,
-		UpdatedAt: r.UpdatedAt,
+		ID:   r.ID,
+		From: entityRefToDomain(r.From),
+		To:   entityRefToDomain(r.To),
+		Name: r.Name,
 	}
 }
 
@@ -171,7 +153,7 @@ func entityRefToDomain(r db.EntityRef) Entity {
 }
 
 // This is where the magic happens!
-func rebuildIndirects(ctx context.Context, relation Relation, from, to Entity) error {
+func rebuildCache(ctx context.Context, relation Relation, from, to Entity) error {
 	leftRelations, err := db.ListLinkedToWithDependencies(ctx, entityToDB(from))
 	if err != nil {
 		return fmt.Errorf("failed to list relations to the left: %w", err)
@@ -212,13 +194,13 @@ func rebuildIndirects(ctx context.Context, relation Relation, from, to Entity) e
 				continue
 			}
 
-			rel := &db.Relation{
-				From:     l.From,
-				To:       r.To,
-				Indirect: true,
-				Name:     name,
+			cache := &db.Relation{
+				From:  l.From,
+				To:    r.To,
+				Cache: true,
+				Name:  name,
 			}
-			if err := rel.Create(ctx); err != nil {
+			if err := cache.Create(ctx); err != nil {
 				return fmt.Errorf("failed to create rel: %w", err)
 			}
 
@@ -227,7 +209,7 @@ func rebuildIndirects(ctx context.Context, relation Relation, from, to Entity) e
 				if len(l.DependencyIDs) == 0 {
 					deps = append(deps, l.ID) // Direct! Add as dependency
 				} else {
-					deps = append(deps, l.DependencyIDs...) // Indirect, so copy dependencies!
+					deps = append(deps, l.DependencyIDs...) // Cache, so copy dependencies!
 				}
 			}
 
@@ -237,14 +219,14 @@ func rebuildIndirects(ctx context.Context, relation Relation, from, to Entity) e
 				if len(r.DependencyIDs) == 0 {
 					deps = append(deps, r.ID) // Direct! Add as dependency
 				} else {
-					deps = append(deps, r.DependencyIDs...) // Indirect, so copy dependencies!
+					deps = append(deps, r.DependencyIDs...) // Cache, so copy dependencies!
 				}
 			}
 
 			for _, dep := range deps {
 				dbdep := &db.Dependency{
-					RelationID:   rel.ID,
-					DependencyID: dep,
+					CacheID:    cache.ID,
+					RelationID: dep,
 				}
 				if err := dbdep.Create(ctx); err != nil {
 					return fmt.Errorf("failed to create dep (%+v): %w", dbdep, err)
