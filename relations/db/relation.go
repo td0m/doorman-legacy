@@ -35,6 +35,7 @@ type RelationFilter struct {
 	FromType *string `db:"from_type"`
 	ToID     *string `db:"to_id"`
 	ToType   *string `db:"to_type"`
+	Name     *string
 }
 
 func (r *Relation) Delete(ctx context.Context) error {

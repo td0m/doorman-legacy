@@ -25,7 +25,7 @@ const n int = 1_000_000
 
 func setupSampleData() {
 	ctx := context.Background()
-	//
+	// TODO: just use generate_series
 	fmt.Println("Creating users and resources...", time.Now())
 	for t := 0; t < n/10; t++ {
 		var g errgroup.Group
@@ -431,11 +431,10 @@ func TestList(t *testing.T) {
 	require.NoError(t, rel.Create(ctx))
 
 	t.Run("Expect 1 relation after creation", func(t *testing.T) {
-		// Expect one relation after creation
 		rels, err := List(ctx, ListRequest{
 			From: &u1,
 			To:   &c1,
-			// Name: rel.Name,
+			Name: rel.Name,
 		})
 		assert.NoError(t, err)
 		assert.Equal(t, 1, len(rels))
