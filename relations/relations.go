@@ -24,6 +24,9 @@ type Relation struct {
 	From Entity
 	To   Entity
 	Name *string
+
+	DependenciesIDs []string
+	DependantsIDs []string
 }
 
 type Entity struct {
@@ -39,10 +42,16 @@ type CreateRequest struct {
 }
 
 type ListRequest struct {
-	From *Entity
-	To   *Entity
-	Name *string
+	From            *Entity
+	To              *Entity
+	Name            *string
 	PaginationToken *string
+	Embed           ListEmbed
+}
+
+type ListEmbed struct {
+	Dependencies bool
+	Dependants   bool
 }
 
 type ListResponse struct {
@@ -129,6 +138,19 @@ func List(ctx context.Context, r ListRequest) (*ListResponse, error) {
 	res := ListResponse{Data: u.Map(dbrelations, toDomain)}
 	if len(res.Data) > 0 {
 		res.PaginationToken = &res.Data[len(res.Data)-1].ID
+	}
+
+	for i := range res.Data {
+		if r.Embed.Dependencies {
+			var err error
+			res.Data[i].DependenciesIDs, err = db.ListDependencies(ctx, res.Data[i].ID)
+			fmt.Println(err)
+		}
+		if r.Embed.Dependants {
+			var err error
+			res.Data[i].DependantsIDs, err = db.ListDependants(ctx, res.Data[i].ID)
+			fmt.Println(err)
+		}
 	}
 
 	return &res, nil

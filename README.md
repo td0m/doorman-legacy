@@ -70,20 +70,14 @@ relations.Create(ctx, relations.CreateRequest{
 ```
 
 ```go
-relations.Check(ctx, relations.CheckRequest{
+relations.List(ctx, relations.CheckRequest{
     From: relations.Entity{ID: "alice", Type: "user"},
     To: relations.Entity{ID: "1", Type: "order"},
-    Name: "owner",
+    Name: &"owner",
 })
 ```
 
-TODO: checking access, listing relations by type (index for that first)
-
-TODO: pagination on listing, especially needed when listing by type (to account for possibly millions of members).
-
-TODO: optionally also return dependencies+dependants on relations.Get (maybe also List) if embedding of them is enabled.
-
-TODO: rebuild cache.
+TODO: rebuild cache endpoint.
 
 ## Performance
 

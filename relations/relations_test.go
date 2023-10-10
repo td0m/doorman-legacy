@@ -485,6 +485,66 @@ func TestList(t *testing.T) {
 	})
 }
 
+func TestListWithEmbeddings(t *testing.T) {
+	ctx := context.Background()
+
+	rnd := xid.New().String()
+	u1 := Entity{ID: "u1:" + rnd, Type: "user"}
+	c1 := Entity{ID: "c1:" + rnd, Type: "collection"}
+	p1 := Entity{ID: "p1:" + rnd, Type: "post"}
+
+	createEntity := func(e Entity) error {
+		return u.Ptr(entitiesdb.Entity{ID: e.ID, Type: e.Type}).Create(ctx)
+	}
+
+	require.NoError(t, createEntity(u1))
+	require.NoError(t, createEntity(c1))
+	require.NoError(t, createEntity(p1))
+
+	u1c1, err := Create(ctx, CreateRequest{
+		From: Entity{ID: u1.ID, Type: u1.Type},
+		To:   Entity{ID: c1.ID, Type: c1.Type},
+	})
+	require.NoError(t, err)
+
+	c1p1, err := Create(ctx, CreateRequest{
+		From: Entity{ID: c1.ID, Type: c1.Type},
+		To:   Entity{ID: p1.ID, Type: p1.Type},
+	})
+	require.NoError(t, err)
+
+	t.Run("u1p1 depends on u1c1 and c1p1", func(t *testing.T) {
+		rels, err := List(ctx, ListRequest{
+			From: &u1,
+			To:   &p1,
+			Embed: ListEmbed{
+				Dependencies: true,
+			},
+		})
+		assert.NoError(t, err)
+
+		assert.Equal(t, 1, len(rels.Data))
+		u1p1 := rels.Data[0]
+		assert.Equal(t, 2, len(rels.Data[0].DependenciesIDs))
+		assert.Equal(t, u1c1.ID, u1p1.DependenciesIDs[0])
+		assert.Equal(t, c1p1.ID, u1p1.DependenciesIDs[1])
+
+		t.Run("u1c1 has u1p1 as dependant", func(t *testing.T) {
+			rels, err := List(ctx, ListRequest{
+				From: &u1,
+				To:   &c1,
+				Embed: ListEmbed{
+					Dependants: true,
+				},
+			})
+			assert.NoError(t, err)
+			assert.Equal(t, 1, len(rels.Data))
+			assert.Equal(t, 1, len(rels.Data[0].DependantsIDs))
+			assert.Equal(t, u1p1.ID, rels.Data[0].DependantsIDs[0])
+		})
+	})
+}
+
 func TestDelete(t *testing.T) {
 	ctx := context.Background()
 
@@ -532,9 +592,7 @@ func TestDelete(t *testing.T) {
 	u.Check(pgxscan.Select(ctx, db.Conn, &rows, `
 		select cache_id from dependencies where relation_id=$1
 	`, u1c1.ID))
-	fmt.Println(rows)
 
-	fmt.Println(u1c1, c1r1, r1p1)
 	require.NoError(t, Delete(ctx, u1c1.ID))
 	require.NoError(t, Delete(ctx, c1r1.ID))
 	require.NoError(t, Delete(ctx, r1p1.ID))

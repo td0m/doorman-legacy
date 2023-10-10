@@ -38,3 +38,18 @@ func ListDependencies(ctx context.Context, cacheID string) ([]string, error) {
 
 	return relationIDs, nil
 }
+
+func ListDependants(ctx context.Context, relationID string) ([]string, error) {
+	query := `
+    select cache_id
+    from dependencies
+	  where relation_id = $1
+  `
+
+	var cacheIDs []string
+	if err := pgxscan.Select(ctx, Conn, &cacheIDs, query, relationID); err != nil {
+		return nil, err
+	}
+
+	return cacheIDs, nil
+}
