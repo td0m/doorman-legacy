@@ -362,7 +362,7 @@ func TestCreate(t *testing.T) {
 								To:   &req.To,
 							})
 							require.NoError(t, err)
-							require.Equal(t, 1, len(res))
+							require.Equal(t, 1, len(res.Data))
 							// todo: check exists
 						}
 
@@ -377,9 +377,9 @@ func TestCreate(t *testing.T) {
 							}
 							all, err := List(ctx, req)
 							require.NoError(t, err)
-							require.Equal(t, 1, len(all), "relation: %s, relations: %+v", rel.From.ID+" => "+rel.To.ID, u.Map(relations, tOnly))
+							require.Equal(t, 1, len(all.Data), "relation: %s, relations: %+v", rel.From.ID+" => "+rel.To.ID, u.Map(relations, tOnly))
 
-							deps, err := db.ListDependencies(ctx, all[0].ID)
+							deps, err := db.ListDependencies(ctx, all.Data[0].ID)
 							require.NoError(t, err)
 
 							expectedDeps := u.Map(rel.Deps, relationId)
@@ -393,6 +393,50 @@ func TestCreate(t *testing.T) {
 				}
 			})
 		}
+	})
+}
+
+func TestListPagination(t *testing.T) {
+	ctx := context.Background()
+
+	createEntity := func(e Entity) error {
+		return u.Ptr(entitiesdb.Entity{ID: e.ID, Type: e.Type}).Create(ctx)
+	}
+
+	rnd := xid.New().String()
+
+	u1 := Entity{ID: "u1:" + rnd, Type: "user"}
+	require.NoError(t, createEntity(u1))
+
+	for i := 0; i < 1_200; i++ {
+		c := Entity{ID: "c" + strconv.Itoa(i) + ":" + rnd, Type: "collection"}
+		require.NoError(t, createEntity(c))
+
+		rel := db.Relation{
+			From:  db.EntityRef{ID: u1.ID, Type: u1.Type},
+			To:    db.EntityRef{ID: c.ID, Type: c.Type},
+			Cache: true,
+		}
+		require.NoError(t, rel.Create(ctx))
+	}
+
+	t.Run("Only returns 1000 first items without pagination token", func(t *testing.T) {
+		res, err := List(ctx, ListRequest{
+			From: &u1,
+		})
+		require.NoError(t, err)
+		assert.Equal(t, 1_000, len(res.Data))
+		assert.Equal(t, "c999:"+rnd, res.Data[999].To.ID)
+		lastToken := res.PaginationToken
+		t.Run("Second request returns remaining 200 items", func(t *testing.T) {
+			res, err := List(ctx, ListRequest{
+				From:            &u1,
+				PaginationToken: lastToken,
+			})
+			require.NoError(t, err)
+			assert.Equal(t, 200, len(res.Data))
+			assert.Equal(t, "c1199:"+rnd, res.Data[199].To.ID)
+		})
 	})
 }
 
@@ -411,9 +455,9 @@ func TestList(t *testing.T) {
 	require.NoError(t, createEntity(c1))
 
 	rel := db.Relation{
-		From: db.EntityRef{ID: u1.ID, Type: u1.Type},
-		To:   db.EntityRef{ID: c1.ID, Type: c1.Type},
-		Name: u.Ptr("foo"),
+		From:  db.EntityRef{ID: u1.ID, Type: u1.Type},
+		To:    db.EntityRef{ID: c1.ID, Type: c1.Type},
+		Name:  u.Ptr("foo"),
 		Cache: true,
 	}
 
@@ -425,7 +469,7 @@ func TestList(t *testing.T) {
 			Name: rel.Name,
 		})
 		assert.NoError(t, err)
-		assert.Equal(t, 0, len(rels))
+		assert.Equal(t, 0, len(rels.Data))
 	})
 
 	require.NoError(t, rel.Create(ctx))
@@ -437,7 +481,7 @@ func TestList(t *testing.T) {
 			Name: rel.Name,
 		})
 		assert.NoError(t, err)
-		assert.Equal(t, 1, len(rels))
+		assert.Equal(t, 1, len(rels.Data))
 	})
 }
 
@@ -482,7 +526,7 @@ func TestDelete(t *testing.T) {
 		To:   &p1,
 	})
 	require.NoError(t, err)
-	require.Equal(t, 1, len(relations))
+	require.Equal(t, 1, len(relations.Data))
 
 	var rows []string
 	u.Check(pgxscan.Select(ctx, db.Conn, &rows, `
@@ -500,7 +544,7 @@ func TestDelete(t *testing.T) {
 		To:   &p1,
 	})
 	require.NoError(t, err)
-	require.Equal(t, 0, len(relations))
+	require.Equal(t, 0, len(relations.Data))
 }
 
 func TestCreateNamed(t *testing.T) {
@@ -546,8 +590,8 @@ func TestCreateNamed(t *testing.T) {
 		Name: c1r1.Name,
 	})
 	require.NoError(t, err)
-	require.Equal(t, 1, len(u1p1s))
-	require.Equal(t, c1r1.Name, u1p1s[0].Name)
+	require.Equal(t, 1, len(u1p1s.Data))
+	require.Equal(t, c1r1.Name, u1p1s.Data[0].Name)
 	fmt.Println(u1c1, c1r1, r1p1)
 }
 

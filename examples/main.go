@@ -53,8 +53,8 @@ func main() {
 	})
 	check(err)
 
-	fmt.Println("relations", len(rs))
-	for _, r := range rs {
+	fmt.Println("relations", len(rs.Data))
+	for _, r := range rs.Data {
 		fmt.Println(r.ID)
 	}
 }

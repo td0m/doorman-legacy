@@ -31,11 +31,12 @@ type EntityRef struct {
 }
 
 type RelationFilter struct {
-	FromID   *string `db:"from_id"`
-	FromType *string `db:"from_type"`
-	ToID     *string `db:"to_id"`
-	ToType   *string `db:"to_type"`
-	Name     *string
+	FromID          *string `db:"from_id"`
+	FromType        *string `db:"from_type"`
+	ToID            *string `db:"to_id"`
+	ToType          *string `db:"to_type"`
+	PaginationToken *string `db:"_id" op:">"`
+	Name            *string
 }
 
 func (r *Relation) Delete(ctx context.Context) error {
@@ -145,7 +146,7 @@ func ListRelations(ctx context.Context, f RelationFilter, cache bool) ([]Relatio
 	    from_type as "from.type",
 	    to_id as "to.id",
 	    to_type as "to.type"
-	  from ` + tableName(cache) + ` ` + where
+	  from ` + tableName(cache) + ` ` + where + ` limit 1000`
 
 	rs := []Relation{}
 	if err := pgxscan.Select(ctx, Conn, &rs, query, params...); err != nil {

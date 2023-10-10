@@ -42,6 +42,12 @@ type ListRequest struct {
 	From *Entity
 	To   *Entity
 	Name *string
+	PaginationToken *string
+}
+
+type ListResponse struct {
+	Data            []Relation
+	PaginationToken *string
 }
 
 type UpdateRequest struct {
@@ -95,12 +101,14 @@ func Create(ctx context.Context, req CreateRequest) (*Relation, error) {
 	return &relation, nil
 }
 
-func List(ctx context.Context, r ListRequest) ([]Relation, error) {
+func List(ctx context.Context, r ListRequest) (*ListResponse, error) {
 	if r.From == nil && r.To == nil {
 		return nil, fmt.Errorf("to or from must be provided")
 	}
 
-	filter := db.RelationFilter{}
+	filter := db.RelationFilter{
+		PaginationToken: r.PaginationToken,
+	}
 	if r.From != nil {
 		filter.FromID = &r.From.ID
 		filter.FromType = &r.From.Type
@@ -118,7 +126,12 @@ func List(ctx context.Context, r ListRequest) ([]Relation, error) {
 		return nil, err
 	}
 
-	return u.Map(dbrelations, toDomain), nil
+	res := ListResponse{Data: u.Map(dbrelations, toDomain)}
+	if len(res.Data) > 0 {
+		res.PaginationToken = &res.Data[len(res.Data)-1].ID
+	}
+
+	return &res, nil
 }
 
 func Delete(ctx context.Context, id string) error {
