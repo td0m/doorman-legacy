@@ -41,6 +41,8 @@ create unlogged table cache(
 );
 
 create index "cache.idx-from-to" on cache(from_type, from_id, to_type, to_id);
+create index "cache.idx-from" on cache(from_type, from_id);
+create index "cache.idx-to" on cache(to_type, to_id);
 
 create unlogged table dependencies(
   relation_id text not null,
