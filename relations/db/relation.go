@@ -148,12 +148,12 @@ func ListRelations(ctx context.Context, f RelationFilter, cache bool) ([]Relatio
 	    to_type as "to.type"
 	  from ` + tableName(cache) + ` ` + where + ` limit 1000`
 
-	rs := []Relation{}
-	if err := pgxscan.Select(ctx, Conn, &rs, query, params...); err != nil {
+	items := []Relation{}
+	if err := pgxscan.Select(ctx, Conn, &items, query, params...); err != nil {
 		return nil, err
 	}
 
-	return rs, nil
+	return items, nil
 }
 
 func tableName(cache bool) string {
