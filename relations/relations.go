@@ -41,6 +41,7 @@ type CreateRequest struct {
 type ListRequest struct {
 	From *Entity
 	To   *Entity
+	Name *string
 }
 
 type UpdateRequest struct {
@@ -70,6 +71,10 @@ func Create(ctx context.Context, req CreateRequest) (*Relation, error) {
 
 	if canConnect := slices.Contains(canConnectTo, to); !canConnect {
 		return nil, errs.New(http.StatusBadRequest, "cannot connect to this type")
+	}
+
+	if req.From.Type == req.To.Type && req.From.ID == req.To.ID {
+		return nil, errs.New(http.StatusBadRequest, "cannot connect to itself")
 	}
 
 	if err := dbrelation.Create(ctx); err != nil {
@@ -103,6 +108,9 @@ func List(ctx context.Context, r ListRequest) ([]Relation, error) {
 	if r.To != nil {
 		filter.ToID = &r.To.ID
 		filter.ToType = &r.To.Type
+	}
+	if r.Name != nil {
+		filter.Name = r.Name
 	}
 
 	dbrelations, err := db.ListRelations(ctx, filter, true) // todo: use cache prop, true by default

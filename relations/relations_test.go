@@ -12,6 +12,7 @@ import (
 	"github.com/georgysavva/scany/v2/pgxscan"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/xid"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	entitiesdb "github.com/td0m/poc-doorman/entities/db"
 	"github.com/td0m/poc-doorman/relations/db"
@@ -148,6 +149,21 @@ func TestCreate(t *testing.T) {
 		require.Equal(t, req.To.ID, relation.To.ID)
 		require.Equal(t, req.To.Type, relation.To.Type)
 		require.Equal(t, req.Name, relation.Name)
+	})
+
+	t.Run("Failure on connection to self", func(t *testing.T) {
+		coll1 := &entitiesdb.Entity{
+			Type: "collection",
+		}
+		require.NoError(t, coll1.Create(ctx))
+
+		req := CreateRequest{
+			ID:   xid.New().String(),
+			From: Entity{ID: coll1.ID, Type: coll1.Type},
+			To:   Entity{ID: coll1.ID, Type: coll1.Type},
+		}
+		_, err := Create(ctx, req)
+		assert.Error(t, err)
 	})
 
 	t.Run("Failure on missing \"from\" entity", func(t *testing.T) {
@@ -380,6 +396,52 @@ func TestCreate(t *testing.T) {
 	})
 }
 
+func TestList(t *testing.T) {
+	ctx := context.Background()
+
+	rnd := xid.New().String()
+	u1 := Entity{ID: "u1:" + rnd, Type: "user"}
+	c1 := Entity{ID: "c1:" + rnd, Type: "collection"}
+
+	createEntity := func(e Entity) error {
+		return u.Ptr(entitiesdb.Entity{ID: e.ID, Type: e.Type}).Create(ctx)
+	}
+
+	require.NoError(t, createEntity(u1))
+	require.NoError(t, createEntity(c1))
+
+	rel := db.Relation{
+		From: db.EntityRef{ID: u1.ID, Type: u1.Type},
+		To:   db.EntityRef{ID: c1.ID, Type: c1.Type},
+		Name: u.Ptr("foo"),
+		Cache: true,
+	}
+
+	// Expect none before creation
+	t.Run("Expect none before creation", func(t *testing.T) {
+		rels, err := List(ctx, ListRequest{
+			From: &u1,
+			To:   &c1,
+			Name: rel.Name,
+		})
+		assert.NoError(t, err)
+		assert.Equal(t, 0, len(rels))
+	})
+
+	require.NoError(t, rel.Create(ctx))
+
+	t.Run("Expect 1 relation after creation", func(t *testing.T) {
+		// Expect one relation after creation
+		rels, err := List(ctx, ListRequest{
+			From: &u1,
+			To:   &c1,
+			// Name: rel.Name,
+		})
+		assert.NoError(t, err)
+		assert.Equal(t, 1, len(rels))
+	})
+}
+
 func TestDelete(t *testing.T) {
 	ctx := context.Background()
 
@@ -482,6 +544,7 @@ func TestCreateNamed(t *testing.T) {
 	u1p1s, err := List(ctx, ListRequest{
 		From: &Entity{ID: u1.ID, Type: u1.Type},
 		To:   &Entity{ID: p1.ID, Type: p1.Type},
+		Name: c1r1.Name,
 	})
 	require.NoError(t, err)
 	require.Equal(t, 1, len(u1p1s))
