@@ -11,9 +11,10 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/xid"
 	"github.com/td0m/poc-doorman/errs"
+	"github.com/td0m/poc-doorman/u"
 )
 
-var wordRe = regexp.MustCompile(`^[a-z]+$`)
+var wordRe = regexp.MustCompile(`^[a-z][a-z0-9]*$`)
 
 var Conn *pgxpool.Pool
 
@@ -24,6 +25,30 @@ type Entity struct {
 
 	CreatedAt time.Time
 	UpdatedAt time.Time
+}
+
+type Filter struct {
+	Type            *string `db:"_type"`
+	PaginationToken *string `db:"_id" op:">"`
+}
+
+func List(ctx context.Context, filter Filter) ([]Entity, error) {
+	where, params := u.FilterBy(&filter)
+	query := `
+	  select
+	    _id,
+	    _type,
+	    attrs,
+			created_at
+			updated_at
+	  from entities ` + where + ` limit 1000`
+
+	items := []Entity{}
+	if err := pgxscan.Select(ctx, Conn, &items, query, params...); err != nil {
+		return nil, err
+	}
+
+	return items, nil
 }
 
 func (e *Entity) Create(ctx context.Context) error {

@@ -26,6 +26,16 @@ type CreateRequest struct {
 	Attrs map[string]any
 }
 
+type ListRequest struct {
+	Type            *string
+	PaginationToken *string
+}
+
+type ListResponse struct {
+	Data            []Entity
+	PaginationToken *string
+}
+
 type UpdateRequest struct {
 	ID   string
 	Type string
@@ -79,9 +89,26 @@ func Create(ctx context.Context, request CreateRequest) (*Entity, error) {
 	return u.Ptr(mapFromDB(*dbe)), nil
 }
 
+func List(ctx context.Context, r ListRequest) (*ListResponse, error) {
+	entities, err := db.List(ctx, db.Filter{
+		Type:            r.Type,
+		PaginationToken: r.PaginationToken,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	res := ListResponse{Data: u.Map(entities, mapFromDB)}
+	if len(res.Data) > 0 {
+		res.PaginationToken = &res.Data[len(res.Data)-1].ID
+	}
+
+	return &res, err
+}
+
 func Delete(ctx context.Context, id, typ string) error {
 	dbentity := &db.Entity{ID: id, Type: typ}
-	if err := dbentity.Delete(ctx); err != nil{
+	if err := dbentity.Delete(ctx); err != nil {
 		return err
 	}
 	return nil
