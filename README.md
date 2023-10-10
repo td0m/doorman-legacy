@@ -40,6 +40,20 @@ flowchart LR
 
 ## Usage
 
+- Relations
+  - Check
+  - Create
+  - Delete
+  - Get
+  - List
+  - RebuildCache
+- Entities
+  - Create
+  - Delete
+  - Get
+  - List
+  - Update
+
 ```go
 entities.Create(ctx, entities.CreateRequest{
     Type: "user",
@@ -68,6 +82,8 @@ TODO: checking access, listing relations by type (index for that first)
 TODO: pagination on listing, especially needed when listing by type (to account for possibly millions of members).
 
 TODO: optionally also return dependencies+dependants on relations.Get (maybe also List) if embedding of them is enabled.
+
+TODO: rebuild cache.
 
 ## Performance
 

@@ -17,6 +17,7 @@ import (
 	"github.com/td0m/poc-doorman/relations/db"
 	"github.com/td0m/poc-doorman/u"
 	"golang.org/x/exp/slices"
+	"golang.org/x/sync/errgroup"
 )
 
 const n int = 1_000_000
@@ -24,32 +25,54 @@ const n int = 1_000_000
 func setupSampleData() {
 	ctx := context.Background()
 	//
-	// fmt.Println("Creating entities...", time.Now())
-	// for i := 0; i < n; i++ {
-	// 	user := &entitiesdb.Entity{
-	// 		Type: "user",
-	// 		ID:   strconv.Itoa(i),
+	fmt.Println("Creating users and resources...", time.Now())
+	for t := 0; t < n/10; t++ {
+		var g errgroup.Group
+		for i := 0; i < 0; i++ {
+			i := t*10 + i
+			g.Go(func() error {
+				e := &entitiesdb.Entity{
+					Type: "resource",
+					ID:   strconv.Itoa(i),
+				}
+				return e.Create(ctx)
+			})
+			g.Go(func() error {
+				user := &entitiesdb.Entity{
+					Type: "user",
+					ID:   strconv.Itoa(i),
+				}
+				return user.Create(ctx)
+			})
+		}
+		u.Check(g.Wait())
+	}
+
+	// fmt.Println("Creating relationships...")
+	// for t := 0; t < n; t++ {
+	// 	var g errgroup.Group
+	// 	for i := 0; i < 10; i++ {
+	// 		g.Go(func() error {
+	// 			in := CreateRequest{
+	// 				From: Entity{Type: "user", ID: strconv.Itoa(rand.Intn(n - 1))},
+	// 				To:   Entity{Type: "resource", ID: strconv.Itoa(rand.Intn(n - 1))},
+	// 				Name: u.Ptr("owner"),
+	// 			}
+	// 			_, err := Create(ctx, in)
+	// 			return err
+	// 		})
 	// 	}
-	// 	u.Check(user.Create(ctx))
-	// }
-	//
-	// fmt.Println("Creating resources...", time.Now())
-	// for i := 0; i < n; i++ {
-	// 	resource := &entitiesdb.Entity{
-	// 		Type: "resource",
-	// 		ID:   strconv.Itoa(i),
-	// 	}
-	// 	u.Check(resource.Create(ctx))
+	// 	u.Check(g.Wait())
 	// }
 
-	for i := 0; i < 10000; i++ {
+	for i := 0; i < 100000; i++ {
 		start := time.Now()
 		params := []any{}
 		query := strings.Builder{}
 
 		query.WriteString(`
-	  insert into relations(_id, from_id, from_type, to_id, to_type, name)
-          values
+	  insert into cache(_id, from_id, from_type, to_id, to_type, name)
+		values
 	`)
 		m := 1000
 		for i := 0; i < m; i++ {
@@ -59,7 +82,7 @@ func setupSampleData() {
 				"user",
 				strconv.Itoa(rand.Intn(n - 1)),
 				"resource",
-				map[string]any{},
+				"owner",
 			}
 			args := []string{}
 			for i := range row {
@@ -79,15 +102,6 @@ func setupSampleData() {
 		u.Check(err)
 		fmt.Println(time.Since(start).Nanoseconds() / int64(m))
 	}
-
-	// for i := 0; i < n; i++ {
-	// 	_, err := Create(ctx, CreateRequest{
-	// 		From: Entity{ID: strconv.Itoa(rand.Intn(n-1)), Type: "user"},
-	// 		To: Entity{ID: strconv.Itoa(rand.Intn(n-1)), Type: "resource"},
-	// 	})
-	// 	u.Check(err)
-	// }
-
 }
 
 func TestMain(m *testing.M) {
@@ -411,7 +425,7 @@ func TestDelete(t *testing.T) {
 
 	var rows []string
 	u.Check(pgxscan.Select(ctx, db.Conn, &rows, `
-		select relation_id from dependencies where dependency_id=$1
+		select cache_id from dependencies where relation_id=$1
 	`, u1c1.ID))
 	fmt.Println(rows)
 
@@ -426,40 +440,6 @@ func TestDelete(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Equal(t, 0, len(relations))
-}
-
-func TestUpdate(t *testing.T) {
-	ctx := context.Background()
-
-	// Make a relation
-
-	from := &entitiesdb.Entity{Type: "user"}
-	require.NoError(t, from.Create(ctx))
-
-	to := &entitiesdb.Entity{Type: "collection"}
-	require.NoError(t, to.Create(ctx))
-
-	dbrelation := &db.Relation{
-		From: db.EntityRef{ID: from.ID, Type: from.Type},
-		To:   db.EntityRef{ID: to.ID, Type: to.Type},
-	}
-	require.NoError(t, dbrelation.Create(ctx))
-
-	// Update the relation
-
-	in := UpdateRequest{
-		Name: u.Ptr("bar"),
-	}
-	res, err := Update(ctx, dbrelation.ID, in)
-	require.NoError(t, err)
-	require.True(t, res.UpdatedAt.After(dbrelation.CreatedAt))
-	require.Equal(t, in.Name, res.Name)
-
-	dbrelation, err = db.Get(ctx, dbrelation.ID)
-	require.NoError(t, err)
-	require.True(t, dbrelation.UpdatedAt.After(dbrelation.CreatedAt))
-	require.Equal(t, in.Name, dbrelation.Name)
-	// TODO: ensure all indirect names also updated
 }
 
 func TestCreateNamed(t *testing.T) {
@@ -559,5 +539,6 @@ func BenchmarkF(b *testing.B) {
 			To:   &Entity{ID: strconv.Itoa(rand.Intn(n - 1)), Type: "resource"},
 		})
 		u.Check(err)
+		// time.Sleep(time.Millisecond * 5)
 	}
 }

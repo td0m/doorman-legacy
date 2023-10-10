@@ -2,7 +2,6 @@ package db
 
 import (
 	"context"
-	"time"
 
 	"github.com/georgysavva/scany/v2/pgxscan"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -13,14 +12,12 @@ import (
 var Conn *pgxpool.Pool
 
 type Relation struct {
-	ID       string    `db:"_id"`
-	From     EntityRef `db:"from"`
-	To       EntityRef `db:"to"`
-	Name     *string
-	Indirect bool
+	Cache bool // Decided whether we use the unlogged cache table or source of truth
 
-	CreatedAt time.Time
-	UpdatedAt time.Time
+	ID   string    `db:"_id"`
+	From EntityRef `db:"from"`
+	To   EntityRef `db:"to"`
+	Name *string
 }
 
 type RelationWithDeps struct {
@@ -38,55 +35,10 @@ type RelationFilter struct {
 	FromType *string `db:"from_type"`
 	ToID     *string `db:"to_id"`
 	ToType   *string `db:"to_type"`
-	Indirect *bool
-}
-
-func Get(ctx context.Context, id string) (*Relation, error) {
-	query := `
-	  select
-	    _id,
-	    name,
-	    created_at,
-	    from_id as "from.id",
-	    from_type as "from.type",
-	    indirect,
-	    to_id as "to.id",
-	    to_type as "to.type",
-	    updated_at
-	  from relations
-	  where
-	    _id = $1
-	`
-
-	var r Relation
-	if err := pgxscan.Get(ctx, Conn, &r, query, id); err != nil {
-		return nil, err
-	}
-	return &r, nil
-}
-
-func (r *Relation) Update(ctx context.Context) error {
-	query := `
-	  update relations
-	  set
-	    updated_at = now(),
-	    name = $3
-	  where
-	    _id = $1 and
-	    updated_at = $2
-	  returning updated_at
-	`
-
-	err := pgxscan.Get(ctx, Conn, r, query, r.ID, r.UpdatedAt, r.Name)
-	if err != nil {
-		return err
-	}
-
-	return nil
 }
 
 func (r *Relation) Delete(ctx context.Context) error {
-	query := `delete from relations where _id=$1`
+	query := `delete from ` + r.table() + ` where _id=$1`
 	_, err := Conn.Exec(ctx, query, r.ID)
 	return err
 }
@@ -100,11 +52,11 @@ func (r *Relation) Create(ctx context.Context) error {
 	}
 
 	query := `
-	  insert into relations(_id, from_id, from_type, to_id, to_type, name, indirect)
-	  values($1, $2, $3, $4, $5, $6, $7)
+	  insert into ` + r.table() + `(_id, from_id, from_type, to_id, to_type, name)
+	  values($1, $2, $3, $4, $5, $6)
 	`
 
-	_, err := Conn.Exec(ctx, query, r.ID, r.From.ID, r.From.Type, r.To.ID, r.To.Type, r.Name, r.Indirect)
+	_, err := Conn.Exec(ctx, query, r.ID, r.From.ID, r.From.Type, r.To.ID, r.To.Type, r.Name)
 	if err != nil {
 		return err
 	}
@@ -112,20 +64,39 @@ func (r *Relation) Create(ctx context.Context) error {
 	return nil
 }
 
+// We always get from cache
+func Get(ctx context.Context, id string) (*Relation, error) {
+	query := `
+	  select
+	    _id,
+	    name,
+	    from_id as "from.id",
+	    from_type as "from.type",
+	    to_id as "to.id",
+	    to_type as "to.type"
+	  from cache
+	  where
+	    _id = $1
+	`
+
+	var r Relation
+	if err := pgxscan.Get(ctx, Conn, &r, query, id); err != nil {
+		return nil, err
+	}
+	return &r, nil
+}
+
 func ListLinkedToWithDependencies(ctx context.Context, e EntityRef) ([]RelationWithDeps, error) {
 	query := `
 	  select
 	    _id,
 	    name,
-	    created_at,
 	    from_id as "from.id",
 	    from_type as "from.type",
-	    indirect,
 	    to_id as "to.id",
 	    to_type as "to.type",
-	    updated_at,
-	    array(select dependency_id from dependencies where relation_id = _id)::text[] as dependency_ids
-	  from relations
+	    array(select relation_id from dependencies where cache_id = _id)::text[] as dependency_ids
+	  from cache
 	  where
 	    to_type = $1 and to_id = $2
 	`
@@ -137,20 +108,21 @@ func ListLinkedToWithDependencies(ctx context.Context, e EntityRef) ([]RelationW
 	return rs, nil
 }
 
+func (r Relation) table() string {
+	return tableName(r.Cache)
+}
+
 func ListLinkedFromWithDependencies(ctx context.Context, e EntityRef) ([]RelationWithDeps, error) {
 	query := `
 	  select
 	    _id,
 	    name,
-	    created_at,
 	    from_id as "from.id",
 	    from_type as "from.type",
-	    indirect,
 	    to_id as "to.id",
 	    to_type as "to.type",
-	    updated_at,
-	    array(select dependency_id from dependencies where relation_id = _id)::text[] as dependency_ids
-	  from relations
+	    array(select relation_id from dependencies where cache_id = _id)::text[] as dependency_ids
+	  from cache
 	  where
 	    from_type = $1 and from_id = $2
 	`
@@ -162,21 +134,17 @@ func ListLinkedFromWithDependencies(ctx context.Context, e EntityRef) ([]Relatio
 	return rs, nil
 }
 
-func ListRelations(ctx context.Context, f RelationFilter) ([]Relation, error) {
+func ListRelations(ctx context.Context, f RelationFilter, cache bool) ([]Relation, error) {
 	where, params := u.FilterBy(&f)
 	query := `
 	  select
 	    _id,
 	    name,
-	    created_at,
 	    from_id as "from.id",
 	    from_type as "from.type",
-	    indirect,
 	    to_id as "to.id",
-	    to_type as "to.type",
-	    updated_at
-	  from relations
-	` + where
+	    to_type as "to.type"
+	  from ` + tableName(cache) + ` ` + where
 
 	rs := []Relation{}
 	if err := pgxscan.Select(ctx, Conn, &rs, query, params...); err != nil {
@@ -184,4 +152,11 @@ func ListRelations(ctx context.Context, f RelationFilter) ([]Relation, error) {
 	}
 
 	return rs, nil
+}
+
+func tableName(cache bool) string {
+	if cache {
+		return "cache"
+	}
+	return "relations"
 }
