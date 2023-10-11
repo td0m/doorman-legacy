@@ -91,3 +91,4 @@ before delete on relations
 for each row
 execute procedure remove_dependent_cache();
 
+-- TODO: ensure if dependency dropped then cache also dropped

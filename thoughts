@@ -1,0 +1,7 @@
+does unlogged table have slow count(*) reads as well? yes.
+  - yes. weirdly it does not scale linearly?
+how does it affect write speeds?
+
+writes become really slow after a while??
+
+TODO: auto updated_at and created_at?

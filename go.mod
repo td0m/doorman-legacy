@@ -4,6 +4,7 @@ go 1.20
 
 require (
 	github.com/georgysavva/scany/v2 v2.0.0
+	github.com/go-chi/chi/v5 v5.0.10
 	github.com/jackc/pgx/v5 v5.4.3
 	github.com/rs/xid v1.5.0
 	github.com/stretchr/testify v1.8.1
