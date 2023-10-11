@@ -116,6 +116,9 @@ func TestMain(m *testing.M) {
 	entitiesdb.Conn = pgDoorman
 	db.Conn = pgDoorman
 
+	_ = (&entitiesdb.Type{ID: "resource"}).Create(ctx)
+	_ = (&entitiesdb.Type{ID: "post"}).Create(ctx)
+
 	// setupSampleData()
 
 	m.Run()
@@ -213,22 +216,22 @@ func TestCreate(t *testing.T) {
 			{"user", "role", true},
 			{"user", "user", false},
 
-			{"user", "foobar", true},
-			{"collection", "foobar", true},
-			{"role", "foobar", false},
+			{"user", "post", true},
+			{"collection", "post", true},
+			{"role", "post", false},
 		}
 
 		for _, tt := range tests {
 			t.Run(fmt.Sprintf("Relating %s to %s results in sucess=%v", tt.FromType, tt.ToType, tt.Success), func(t *testing.T) {
 				from := &entitiesdb.Entity{
 					Type: tt.FromType,
-					ID:   xid.New().String(),
+					ID:   "id" + xid.New().String(),
 				}
 				require.NoError(t, from.Create(ctx))
 
 				to := &entitiesdb.Entity{
 					Type: tt.ToType,
-					ID:   xid.New().String(),
+					ID:   "id" + xid.New().String(),
 				}
 				require.NoError(t, to.Create(ctx))
 
@@ -262,16 +265,16 @@ func TestCreate(t *testing.T) {
 			{"user", "role", true},
 
 			{"user", "post", true},
-			{"collection", "foo", true},
-			{"collection", "bar", true},
+			{"collection", "post", true},
+			{"collection", "resource", true},
 		}
 
 		for _, tt := range tests {
 			t.Run(fmt.Sprintf("%s %s %v", tt.from, tt.to, tt.success), func(t *testing.T) {
-				from := &entitiesdb.Entity{ID: xid.New().String(), Type: tt.from}
+				from := &entitiesdb.Entity{ID: "id" + xid.New().String(), Type: tt.from}
 				require.NoError(t, from.Create(ctx))
 
-				to := &entitiesdb.Entity{ID: xid.New().String(), Type: tt.to}
+				to := &entitiesdb.Entity{ID: "id" + xid.New().String(), Type: tt.to}
 				require.NoError(t, to.Create(ctx))
 
 				in := CreateRequest{
@@ -281,9 +284,9 @@ func TestCreate(t *testing.T) {
 				}
 				_, err := Create(ctx, in)
 				if tt.success {
-					require.NoError(t, err)
+					assert.NoError(t, err)
 				} else {
-					require.Error(t, err)
+					assert.Error(t, err)
 				}
 			})
 		}
@@ -334,7 +337,7 @@ func TestCreate(t *testing.T) {
 					t.Run(fmt.Sprintf("Relations %+v", relations), func(t *testing.T) {
 						rnd := xid.New().String()
 						id := func(eid string) string {
-							return eid + ":" + rnd
+							return "id" + eid + rnd
 						}
 						relationId := func(r Relation) string {
 							return id(r.From.ID) + " => " + id(r.To.ID)
@@ -405,11 +408,11 @@ func TestListPagination(t *testing.T) {
 
 	rnd := xid.New().String()
 
-	u1 := Entity{ID: "u1:" + rnd, Type: "user"}
+	u1 := Entity{ID: "u1" + rnd, Type: "user"}
 	require.NoError(t, createEntity(u1))
 
 	for i := 0; i < 1_200; i++ {
-		c := Entity{ID: "c" + strconv.Itoa(i) + ":" + rnd, Type: "collection"}
+		c := Entity{ID: "c" + strconv.Itoa(i) + rnd, Type: "collection"}
 		require.NoError(t, createEntity(c))
 
 		rel := db.Relation{
@@ -426,7 +429,7 @@ func TestListPagination(t *testing.T) {
 		})
 		require.NoError(t, err)
 		assert.Equal(t, 1_000, len(res.Data))
-		assert.Equal(t, "c999:"+rnd, res.Data[999].To.ID)
+		assert.Equal(t, "c999"+rnd, res.Data[999].To.ID)
 		lastToken := res.PaginationToken
 		t.Run("Second request returns remaining 200 items", func(t *testing.T) {
 			res, err := List(ctx, ListRequest{
@@ -435,7 +438,7 @@ func TestListPagination(t *testing.T) {
 			})
 			require.NoError(t, err)
 			assert.Equal(t, 200, len(res.Data))
-			assert.Equal(t, "c1199:"+rnd, res.Data[199].To.ID)
+			assert.Equal(t, "c1199"+rnd, res.Data[199].To.ID)
 		})
 	})
 }
@@ -444,8 +447,8 @@ func TestList(t *testing.T) {
 	ctx := context.Background()
 
 	rnd := xid.New().String()
-	u1 := Entity{ID: "u1:" + rnd, Type: "user"}
-	c1 := Entity{ID: "c1:" + rnd, Type: "collection"}
+	u1 := Entity{ID: "u1" + rnd, Type: "user"}
+	c1 := Entity{ID: "c1" + rnd, Type: "collection"}
 
 	createEntity := func(e Entity) error {
 		return u.Ptr(entitiesdb.Entity{ID: e.ID, Type: e.Type}).Create(ctx)
@@ -489,9 +492,9 @@ func TestListWithEmbeddings(t *testing.T) {
 	ctx := context.Background()
 
 	rnd := xid.New().String()
-	u1 := Entity{ID: "u1:" + rnd, Type: "user"}
-	c1 := Entity{ID: "c1:" + rnd, Type: "collection"}
-	p1 := Entity{ID: "p1:" + rnd, Type: "post"}
+	u1 := Entity{ID: "u1" + rnd, Type: "user"}
+	c1 := Entity{ID: "c1" + rnd, Type: "collection"}
+	p1 := Entity{ID: "p1" + rnd, Type: "post"}
 
 	createEntity := func(e Entity) error {
 		return u.Ptr(entitiesdb.Entity{ID: e.ID, Type: e.Type}).Create(ctx)
@@ -549,10 +552,10 @@ func TestDelete(t *testing.T) {
 	ctx := context.Background()
 
 	rnd := xid.New().String()
-	u1 := Entity{ID: "u1:" + rnd, Type: "user"}
-	c1 := Entity{ID: "c1:" + rnd, Type: "collection"}
-	r1 := Entity{ID: "r1:" + rnd, Type: "role"}
-	p1 := Entity{ID: "p1:" + rnd, Type: "permission"}
+	u1 := Entity{ID: "u1" + rnd, Type: "user"}
+	c1 := Entity{ID: "c1" + rnd, Type: "collection"}
+	r1 := Entity{ID: "r1" + rnd, Type: "role"}
+	p1 := Entity{ID: "p1" + rnd, Type: "permission"}
 
 	createEntity := func(e Entity) error {
 		return u.Ptr(entitiesdb.Entity{ID: e.ID, Type: e.Type}).Create(ctx)
@@ -601,18 +604,18 @@ func TestDelete(t *testing.T) {
 		From: &u1,
 		To:   &p1,
 	})
-	require.NoError(t, err)
-	require.Equal(t, 0, len(relations.Data))
+	assert.NoError(t, err)
+	assert.Equal(t, 0, len(relations.Data))
 }
 
 func TestCreateNamed(t *testing.T) {
 	ctx := context.Background()
 
 	rnd := xid.New().String()
-	u1 := Entity{ID: "u1:" + rnd, Type: "user"}
-	c1 := Entity{ID: "c1:" + rnd, Type: "collection"}
-	r1 := Entity{ID: "r1:" + rnd, Type: "role"}
-	p1 := Entity{ID: "p1:" + rnd, Type: "permission"}
+	u1 := Entity{ID: "u1" + rnd, Type: "user"}
+	c1 := Entity{ID: "c1" + rnd, Type: "collection"}
+	r1 := Entity{ID: "r1" + rnd, Type: "role"}
+	p1 := Entity{ID: "p1" + rnd, Type: "permission"}
 
 	createEntity := func(e Entity) error {
 		return u.Ptr(entitiesdb.Entity{ID: e.ID, Type: e.Type}).Create(ctx)

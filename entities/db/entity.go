@@ -60,10 +60,7 @@ func (e *Entity) Create(ctx context.Context) error {
 	if len(e.Attrs) == 0 {
 		e.Attrs = nil
 	}
-	if !wordRe.MatchString(e.Type) {
-		return errs.New(http.StatusBadRequest, "Type is invalid, must be an alphanumeric word starting with a letter.")
-	}
-	// TODO: test to validate
+
 	if !wordRe.MatchString(e.ID) {
 		return errs.New(http.StatusBadRequest, "ID is invalid, must be an alphanumeric word starting with a letter.")
 	}
