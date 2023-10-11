@@ -69,7 +69,7 @@ func ListTypes(ctx context.Context) ([]Type, error) {
 	`
 
 	var ts []Type
-	err := pgxscan.Get(ctx, Conn, &ts, query)
+	err := pgxscan.Select(ctx, Conn, &ts, query)
 
 	return ts, err
 }
