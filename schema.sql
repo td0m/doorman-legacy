@@ -1,3 +1,16 @@
+create table entity_types(
+  _id text primary key,
+  attrs jsonb,
+
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+insert into entity_types(_id, attrs) values('collection', '{}');
+insert into entity_types(_id, attrs) values('user', '{}');
+insert into entity_types(_id, attrs) values('role', '{}');
+insert into entity_types(_id, attrs) values('permission', '{}');
+
 create table entities(
   _id text not null,
   _type text not null,
@@ -6,7 +19,8 @@ create table entities(
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
 
-  primary key(_type, _id)
+  primary key(_type, _id),
+  constraint "entities.fkey-_type" foreign key (_type) references entity_types(_id)
 );
 
 create index "entities.idx-id-type" on entities(_id, _type);
