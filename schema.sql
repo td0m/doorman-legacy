@@ -1,7 +1,3 @@
--- delete from cache;
--- delete from dependencies;
--- delete from relations;
-
 create table entity_types(
   _id text primary key,
   attrs jsonb,

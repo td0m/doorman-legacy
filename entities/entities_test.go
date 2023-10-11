@@ -33,13 +33,6 @@ func TestCreate(t *testing.T) {
 		in      CreateRequest
 		success bool
 	}{
-		// {CreateRequest{Type: ""}, false},
-		// {CreateRequest{Type: "no spaces"}, false},
-		// {CreateRequest{Type: "bad_characters"}, false},
-		// {CreateRequest{Type: "0numbers"}, false},
-		// {CreateRequest{Type: "n0numbers"}, true},
-		// {CreateRequest{Type: "LOWERCASE"}, false},
-
 		{CreateRequest{Type: "user"}, true},
 		{CreateRequest{Type: "user", Attrs: map[string]any{}}, true},
 		{CreateRequest{Type: "user", Attrs: map[string]any{"foo": "bar"}}, true},
