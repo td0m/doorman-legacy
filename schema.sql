@@ -34,8 +34,8 @@ create table relations(
   to_id text not null,
   to_type text not null,
 
-  constraint "relations.fkey-from" foreign key (from_type, from_id) references entities(_type, _id),
-  constraint "relations.fkey-to" foreign key (to_type, to_id) references entities(_type, _id)
+  constraint "relations.fkey-from" foreign key (from_type, from_id) references entities(_type, _id) on delete cascade,
+  constraint "relations.fkey-to" foreign key (to_type, to_id) references entities(_type, _id) on delete cascade
 );
 
 create index "relations.idx-from" on relations(from_type, from_id);
@@ -50,8 +50,8 @@ create unlogged table cache(
   to_id text not null,
   to_type text not null,
 
-  constraint "cache.fkey-from" foreign key (from_type, from_id) references entities(_type, _id),
-  constraint "cache.fkey-to" foreign key (to_type, to_id) references entities(_type, _id)
+  constraint "cache.fkey-from" foreign key (from_type, from_id) references entities(_type, _id) on delete cascade,
+  constraint "cache.fkey-to" foreign key (to_type, to_id) references entities(_type, _id) on delete cascade
 );
 
 create index "cache.idx-from-to" on cache(from_type, from_id, to_type, to_id);
@@ -65,7 +65,7 @@ create unlogged table dependencies(
   primary key(relation_id, cache_id),
 
   -- relation cannot be removed if any cached dependencies lingering
-  constraint "dependencies.fkey-relation_id" foreign key (relation_id) references relations(_id),
+  constraint "dependencies.fkey-relation_id" foreign key (relation_id) references relations(_id) on delete cascade,
   -- cache is dropped = remove dependencies linked to it
   constraint "dependencies.fkey-cache_id" foreign key (cache_id) references cache(_id) on delete cascade
 );
