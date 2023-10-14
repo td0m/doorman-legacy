@@ -48,18 +48,6 @@ func app(ctx context.Context) error {
 
 	cmd := os.Args[1]
 	switch cmd {
-	case "connectionsg":
-		if len(os.Args) < 3 {
-			return fmt.Errorf("subcommand required")
-		}
-		subcmd := os.Args[2]
-		switch subcmd {
-		case "list":
-			// case "connect":
-			// 	if len(os.Args) < 3 {
-			// 		return fmt.Errorf("usage: doorman connect {{id}}")
-			// 	}
-		}
 	case "check":
 		if len(os.Args) != 4 {
 			return errors.New("usage: check [from] [to]")
@@ -144,28 +132,6 @@ func app(ctx context.Context) error {
 			os.Exit(1)
 		}
 		fmt.Println("👍")
-		// fmt.Printf("%+v\n", entity)
-	case "entities":
-		if len(os.Args) < 3 {
-			return fmt.Errorf("subcommand required")
-		}
-		subcmd := os.Args[2]
-		switch subcmd {
-		case "list":
-		case "new":
-			if len(os.Args) != 4 {
-				return fmt.Errorf("usage: doorman entities new [id]")
-			}
-			id := os.Args[3]
-			entity, err := entities.Create(ctx, service.CreateEntity{
-				ID: id,
-			})
-			if err != nil {
-				fmt.Println(err)
-				os.Exit(1)
-			}
-			fmt.Printf("%+v\n", entity)
-		}
 	}
 
 	return nil
