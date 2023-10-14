@@ -35,9 +35,6 @@ func (r Relation) Validate() error {
 		return fmt.Errorf("connecting to self not allowed")
 	}
 
-	// TODO: validate types
-	// fromType, toType := extractType(r.From), extractType(r.To)
-
 	return nil
 }
 
@@ -63,9 +60,11 @@ func (r *Relation) Create(ctx context.Context) error {
 	}()
 
 	// Concurrent adding and removing relations can lead to dangling cache without this
+	// Remove it and run tests for proof it's needed
 	if _, err := tx.Exec(ctx, `lock table relations in access exclusive mode`); err != nil {
 		return fmt.Errorf("locking table relations failed: %w", err)
 	}
+
 	query := `
 		insert into relations(id, "from", "to", name)
 		values($1, $2, $3, $4)
@@ -76,49 +75,14 @@ func (r *Relation) Create(ctx context.Context) error {
 		return fmt.Errorf("tx.Exec failed to insert relation: %w", err)
 	}
 
-	// Computes relations
-	{
-		from, err := listRecRelationsTo(ctx, tx, r.From)
-		if err != nil {
-			return fmt.Errorf("listRecRelationsTo failed: %w", err)
-		}
-		to, err := listRecRelationsFrom(ctx, tx, r.To)
-		if err != nil {
-			return fmt.Errorf("listRecRelationsFrom failed: %w", err)
-		}
+	caches, err := listDerivativeCaches(ctx, tx, *r)
+	if err != nil {
+		return fmt.Errorf("listDerivativeCaches failed: %w", err)
+	}
 
-		// Because of the nature of cycles, this will always match.
-		// No need for the second statement.
-		for _, from := range from {
-			if from.From == r.To {
-				return ErrCycle
-			}
-		}
-		// for _, to := range to {
-		// 	if to.To == r.From {
-		// 		return ErrCycle
-		// 	}
-		// }
-
-		from = append(from, RecRelation{Relation: *r})
-		to = append(to, RecRelation{Relation: *r})
-
-		for _, from := range from {
-			for _, to := range to {
-				// fmt.Printf("%s+%s: %+v %+v %+v\n", from.From, to.To, from.Via, r.ID, to.Via)
-				// fmt.Printf("\t%+v\n", from)
-				deps := append(append(from.Via, r.ID), to.Via...)
-				cache := &Cache{
-					ID:   depsToID(deps),
-					From: from.From,
-					To:   to.To,
-					Name: nil,
-				}
-
-				if err := cache.Create(ctx, tx); err != nil {
-					return fmt.Errorf("cache.Create failed: %w", err)
-				}
-			}
+	for _, cache := range caches {
+		if err := cache.Create(ctx, tx); err != nil {
+			return fmt.Errorf("cache.Create failed: %w", err)
 		}
 	}
 
@@ -127,6 +91,49 @@ func (r *Relation) Create(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+func listDerivativeCaches(ctx context.Context, tx pgxscan.Querier, r Relation) ([]Cache, error) {
+	froms, err := listRecRelationsTo(ctx, tx, r.From)
+	if err != nil {
+		return nil, fmt.Errorf("listRecRelationsTo failed: %w", err)
+	}
+	tos, err := listRecRelationsFrom(ctx, tx, r.To)
+	if err != nil {
+		return nil, fmt.Errorf("listRecRelationsFrom failed: %w", err)
+	}
+
+	// Because of the nature of cycles, this will always match.
+	// No need for the second statement.
+	for _, from := range froms {
+		if from.From == r.To {
+			return nil, ErrCycle
+		}
+	}
+	// for _, to := range to {
+	// 	if to.To == r.From {
+	// 		return ErrCycle
+	// 	}
+	// }
+
+	froms = append(froms, RecRelation{Relation: r})
+	tos = append(tos, RecRelation{Relation: r})
+
+	caches := make([]Cache, len(froms)*len(tos))
+	for i, from := range froms {
+		for j, to := range tos {
+			deps := append(append(from.Via, r.ID), to.Via...)
+			fmt.Println(i + j * len(froms))
+			caches[i+j*len(froms)] = Cache{
+				ID:   depsToID(deps),
+				From: from.From,
+				To:   to.To,
+				Name: nil,
+			}
+		}
+	}
+
+	return caches, nil
 }
 
 func listRecRelationsTo(ctx context.Context, tx pgxscan.Querier, id string) ([]RecRelation, error) {
@@ -217,44 +224,17 @@ func (r *Relation) Delete(ctx context.Context) error {
 		return fmt.Errorf("pg.Exec failed: %w", err)
 	}
 
-	{
-		from, err := listRecRelationsTo(ctx, pg, r.From)
-		if err != nil {
-			return fmt.Errorf("listRecRelationsTo failed: %w", err)
-		}
-		to, err := listRecRelationsFrom(ctx, pg, r.To)
-		if err != nil {
-			return fmt.Errorf("listRecRelationsFrom failed: %w", err)
-		}
+	caches, err := listDerivativeCaches(ctx, pg, *r)
+	if err != nil {
+		return fmt.Errorf("listDerivativeCaches failed: %w", err)
+	}
 
-		// Because of the nature of cycles, this will always match.
-		// No need for the second statement.
-		for _, from := range from {
-			if from.From == r.To {
-				return ErrCycle
-			}
-		}
-		// for _, to := range to {
-		// 	if to.To == r.From {
-		// 		return ErrCycle
-		// 	}
-		// }
-
-		from = append(from, RecRelation{Relation: *r})
-		to = append(to, RecRelation{Relation: *r})
-
-		for _, from := range from {
-			for _, to := range to {
-				deps := append(append(from.Via, r.ID), to.Via...)
-				cache := &Cache{ID: depsToID(deps)}
-				fmt.Println("del", cache.ID)
-				if err := cache.Delete(ctx); err != nil {
-					return fmt.Errorf("cache.Delete failed: %w", err)
-				}
-			}
+	for _, cache := range caches {
+		fmt.Println("del", cache.ID)
+		if err := (&cache).Delete(ctx); err != nil {
+			return fmt.Errorf("cache.Delete failed: %w", err)
 		}
 	}
 
-	// TODO:update cache
 	return nil
 }
