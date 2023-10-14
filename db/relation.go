@@ -8,7 +8,7 @@ import (
 
 	"github.com/georgysavva/scany/v2/pgxscan"
 	"github.com/rs/xid"
-	"golang.org/x/exp/slog"
+	// "golang.org/x/exp/slog"
 )
 
 var ErrCycle = errors.New("cycle detected")
@@ -55,7 +55,7 @@ func (r *Relation) Create(ctx context.Context) error {
 	// Rolls back if not committed properly
 	defer func() {
 		if err := tx.Rollback(ctx); err != nil {
-			slog.Error("tx.Rollback failed in relation.Create: ", err)
+			// slog.Error("tx.Rollback failed in relation.Create: ", err)
 		}
 	}()
 
@@ -123,7 +123,6 @@ func listDerivativeCaches(ctx context.Context, tx pgxscan.Querier, r Relation) (
 	for i, from := range froms {
 		for j, to := range tos {
 			deps := append(append(from.Via, r.ID), to.Via...)
-			fmt.Println(i + j * len(froms))
 			caches[i+j*len(froms)] = Cache{
 				ID:   depsToID(deps),
 				From: from.From,
