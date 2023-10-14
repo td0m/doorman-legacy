@@ -14,6 +14,11 @@ type Entity struct {
 	Attrs map[string]any
 }
 
+type UpdateEntity struct {
+	ID    string
+	Attrs map[string]any
+}
+
 type CreateEntity struct {
 	ID    string
 	Attrs map[string]any
@@ -29,6 +34,25 @@ func (es *Entities) Create(ctx context.Context, request CreateEntity) (*Entity, 
 	}
 
 	res := mapEntityFromDB(*e)
+	return &res, nil
+}
+
+func (es *Entities) Update(ctx context.Context, request UpdateEntity) (*Entity, error) {
+	entity, err := db.RetrieveEntity(ctx, request.ID)
+	if err != nil {
+		return nil, fmt.Errorf("db.RetrieveEntity failed: %w", err)
+	}
+
+	// TODO: upsert
+	if request.Attrs != nil {
+		entity.Attrs = request.Attrs
+	}
+
+	if err := entity.Update(ctx); err != nil {
+		return nil, fmt.Errorf("db.Update failed: %w", err)
+	}
+
+	res := mapEntityFromDB(*entity)
 	return &res, nil
 }
 

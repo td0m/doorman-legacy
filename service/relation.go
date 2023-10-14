@@ -37,6 +37,7 @@ type RelationsCreate struct {
 	Name *string
 }
 
+// TODO: MIGHT be better to just return all relations between the two entities
 func (*Relations) Create(ctx context.Context, request RelationsCreate) (*Relation, error) {
 	r := &db.Relation{
 		From: request.From,

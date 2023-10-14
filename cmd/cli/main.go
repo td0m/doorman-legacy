@@ -2,27 +2,33 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/td0m/poc-doorman/db"
 	"github.com/td0m/poc-doorman/service"
 )
 
-var usage = `Usage: doorman command [options]
+var usage = `doorman {{version}}
+  The official command-line interface for doorman.
 
-The command-line interface for using doorman.
-Great for exploration, testing, and management.
+usage:
+  doorman command [options]
 
-Commands:
-	entities list    lists all entities.
-	entities new     creates a new entity.
-	version          Prints the version.
+commands:
+  attrs        updates attributes of an entity or collection.
+  connect      connect an entity to another one.
+  delete       delete an existing entity.
+  disconnect   remove a connection.
+  new          create an entity.
 `
 
 func main() {
+	usage = strings.Replace(usage, "{{version}}", "v0", 1)
 	if len(os.Args) < 2 {
 		fmt.Println(usage)
 		os.Exit(1)
@@ -48,6 +54,48 @@ func app(ctx context.Context) error {
 
 	cmd := os.Args[1]
 	switch cmd {
+	case "attrs":
+		if len(os.Args) < 4 {
+			usage := `usage: attrs [user:alice or #relation_id] [json]
+
+// commands:
+//   set   [key] [value]
+//   unset [key] [value]
+			`
+			return errors.New(usage)
+		}
+
+		overwrite := flag.Bool("overwrite", false, "overwrite existing attributes instead of merging with existing values")
+		os.Args = os.Args[2:]
+		flag.Parse()
+
+		_ = overwrite
+
+		target, value := os.Args[0], flag.Arg(0)
+
+		if target == "" {
+			return errors.New("invalid user or relation")
+		}
+
+		attrs := map[string]any{}
+		err := json.Unmarshal([]byte(value), &attrs)
+		if err != nil {
+			return fmt.Errorf("parsing value to json failed: %w", err)
+		}
+
+		if target[0] == '#' {
+			return fmt.Errorf("not impl for relations yet")
+		} else {
+			res, err := entities.Update(ctx, service.UpdateEntity{
+				ID:    target,
+				Attrs: attrs,
+			})
+			if err != nil {
+				return fmt.Errorf("update failed: %w", err)
+			}
+
+			printAttrs(res.Attrs)
+		}
 	case "check":
 		if len(os.Args) != 4 {
 			return errors.New("usage: check [from] [to]")
@@ -139,4 +187,10 @@ func app(ctx context.Context) error {
 
 func printRel(r *service.Relation) {
 	fmt.Printf("%s => %s \t\t(id='%s')\n", r.From, r.To, r.ID)
+}
+
+func printAttrs(attrs map[string]any) {
+	for k, v := range attrs {
+		fmt.Printf("%s\t\t%+v\n", k, v)
+	}
 }

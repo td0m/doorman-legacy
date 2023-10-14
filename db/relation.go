@@ -7,11 +7,14 @@ import (
 	"strings"
 
 	"github.com/georgysavva/scany/v2/pgxscan"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/rs/xid"
 	// "golang.org/x/exp/slog"
 )
 
 var ErrCycle = errors.New("cycle detected")
+var ErrFkeyFrom = errors.New("entity 'from' not found")
+var ErrFkeyTo = errors.New("entity 'to' not found")
 
 type RecRelation struct {
 	Via []string
@@ -72,6 +75,14 @@ func (r *Relation) Create(ctx context.Context) error {
 
 	_, err = tx.Exec(ctx, query, r.ID, r.From, r.To, r.Name)
 	if err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) {
+			if pgErr.Code == "23503" && pgErr.ConstraintName == "relations.fkey-from" {
+				return ErrFkeyFrom
+			} else if pgErr.Code == "23503" && pgErr.ConstraintName == "relations.fkey-to" {
+				return ErrFkeyTo
+			}
+		}
 		return fmt.Errorf("tx.Exec failed to insert relation: %w", err)
 	}
 
