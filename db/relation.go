@@ -157,7 +157,7 @@ func listRecRelationsTo(ctx context.Context, tx pgxscan.Querier, id string) ([]R
 			from relations r
 			inner join relate_to on relate_to."from" = r."to"
 			where r."from" != $1
-		) select * from relate_to
+		) select * from relate_to order by id desc
 	`
 
 	var relations []RecRelation
@@ -190,7 +190,7 @@ func listRecRelationsFrom(ctx context.Context, tx pgxscan.Querier, id string) ([
 			from relations r
 			inner join relate_from on relate_from."to" = r."from"
 			where r."to" != $1
-		) select * from relate_from
+		) select * from relate_from order by id
 	`
 
 	var relations []RecRelation
