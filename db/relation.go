@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	"github.com/georgysavva/scany/v2/pgxscan"
-	"github.com/jackc/pgx/v5"
 	"github.com/rs/xid"
 	"golang.org/x/exp/slog"
 )
@@ -79,7 +78,6 @@ func (r *Relation) Create(ctx context.Context) error {
 
 	// Computes relations
 	{
-		// TODO: can we use these two to prevent cycles?
 		from, err := listRecRelationsTo(ctx, tx, r.From)
 		if err != nil {
 			return fmt.Errorf("listRecRelationsTo failed: %w", err)
@@ -107,8 +105,11 @@ func (r *Relation) Create(ctx context.Context) error {
 
 		for _, from := range from {
 			for _, to := range to {
+				// fmt.Printf("%s+%s: %+v %+v %+v\n", from.From, to.To, from.Via, r.ID, to.Via)
+				// fmt.Printf("\t%+v\n", from)
+				deps := append(append(from.Via, r.ID), to.Via...)
 				cache := &Cache{
-					Via:  append(append(from.Via, r.ID), to.Via...),
+					ID:   depsToID(deps),
 					From: from.From,
 					To:   to.To,
 					Name: nil,
@@ -128,14 +129,14 @@ func (r *Relation) Create(ctx context.Context) error {
 	return nil
 }
 
-func listRecRelationsTo(ctx context.Context, tx pgx.Tx, id string) ([]RecRelation, error) {
+func listRecRelationsTo(ctx context.Context, tx pgxscan.Querier, id string) ([]RecRelation, error) {
 	query := `
 		with recursive relate_to as(
 			select
 				id,
 				"from",
 				"to",
-				'{}'::text[] as via
+				array_append('{}'::text[], id) as via
 			from relations
 			where "to" = $1
 
@@ -145,7 +146,7 @@ func listRecRelationsTo(ctx context.Context, tx pgx.Tx, id string) ([]RecRelatio
 				r.id,
 				r."from",
 				r."to",
-				array_append(relate_to.via, relate_to.id) as via
+				array_append(relate_to.via, r.id) as via
 			from relations r
 			inner join relate_to on relate_to."from" = r."to"
 			where r."from" != $1
@@ -161,14 +162,14 @@ func listRecRelationsTo(ctx context.Context, tx pgx.Tx, id string) ([]RecRelatio
 	return relations, nil
 }
 
-func listRecRelationsFrom(ctx context.Context, tx pgx.Tx, id string) ([]RecRelation, error) {
+func listRecRelationsFrom(ctx context.Context, tx pgxscan.Querier, id string) ([]RecRelation, error) {
 	query := `
 		with recursive relate_from as(
 			select
 				id,
 				"from",
 				"to",
-				'{}'::text[] as via
+				array_append('{}'::text[], id) as via
 			from relations
 			where "from" = $1
 
@@ -178,7 +179,7 @@ func listRecRelationsFrom(ctx context.Context, tx pgx.Tx, id string) ([]RecRelat
 				r.id,
 				r."from",
 				r."to",
-				array_append(relate_from.via, relate_from.id) as via
+				array_append(relate_from.via, r.id) as via
 			from relations r
 			inner join relate_from on relate_from."to" = r."from"
 			where r."to" != $1
@@ -194,4 +195,66 @@ func listRecRelationsFrom(ctx context.Context, tx pgx.Tx, id string) ([]RecRelat
 	return relations, nil
 }
 
-// TODO: remove.
+func RetrieveRelation(ctx context.Context, id string) (*Relation, error) {
+	query := `
+		select
+		where id = $1
+	`
+
+	var r Relation
+
+	if err := pgxscan.Get(ctx, pg, &r, query, id); err != nil {
+		return nil, fmt.Errorf("get failed: %w", err)
+	}
+
+	return &r, nil
+}
+
+func (r *Relation) Delete(ctx context.Context) error {
+	query := `delete from relations where id = $1`
+
+	if _, err := pg.Exec(ctx, query, r.ID); err != nil {
+		return fmt.Errorf("pg.Exec failed: %w", err)
+	}
+
+	{
+		from, err := listRecRelationsTo(ctx, pg, r.From)
+		if err != nil {
+			return fmt.Errorf("listRecRelationsTo failed: %w", err)
+		}
+		to, err := listRecRelationsFrom(ctx, pg, r.To)
+		if err != nil {
+			return fmt.Errorf("listRecRelationsFrom failed: %w", err)
+		}
+
+		// Because of the nature of cycles, this will always match.
+		// No need for the second statement.
+		for _, from := range from {
+			if from.From == r.To {
+				return ErrCycle
+			}
+		}
+		// for _, to := range to {
+		// 	if to.To == r.From {
+		// 		return ErrCycle
+		// 	}
+		// }
+
+		from = append(from, RecRelation{Relation: *r})
+		to = append(to, RecRelation{Relation: *r})
+
+		for _, from := range from {
+			for _, to := range to {
+				deps := append(append(from.Via, r.ID), to.Via...)
+				cache := &Cache{ID: depsToID(deps)}
+				fmt.Println("del", cache.ID)
+				if err := cache.Delete(ctx); err != nil {
+					return fmt.Errorf("cache.Delete failed: %w", err)
+				}
+			}
+		}
+	}
+
+	// TODO:update cache
+	return nil
+}

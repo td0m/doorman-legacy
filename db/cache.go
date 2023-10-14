@@ -5,8 +5,10 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/jackc/pgx/v5"
+	"github.com/georgysavva/scany/v2/pgxscan"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/rs/xid"
+	"github.com/td0m/poc-doorman/u"
 )
 
 type Cache struct {
@@ -15,21 +17,38 @@ type Cache struct {
 	From string
 	To   string
 
-	Via []string
+	Via []string // TODO: remove
 }
 
-type CacheFilter struct {
-	From     *string
+type RelationFilter struct {
+	AfterID  *string `db:"id" op:">"`
+	From     *string `db:"\"from\""`
 	FromType *string `db:"from_type"`
-	To       *string
-	ToType   *string `db:"to_type"`
 	Name     *string
+	To       *string `db:"\"to\""`
+	ToType   *string `db:"to_type"`
 }
 
-func (c *Cache) Create(ctx context.Context, tx pgx.Tx) error {
+type Executioner interface {
+	Exec(ctx context.Context, sql string, arguments ...any) (commandTag pgconn.CommandTag, err error)
+}
+
+func depsToID(deps []string) string {
+	return "cache: " + strings.Join(deps, " ")
+}
+
+func (c *Cache) Delete(ctx context.Context) error {
+	query := `delete from cache where id = $1`
+	if _, err := pg.Exec(ctx, query, c.ID); err != nil {
+		return fmt.Errorf("pg.Exec failed: %w", err)
+	}
+	return nil
+}
+
+func (c *Cache) Create(ctx context.Context, conn Executioner) error {
 	if c.ID == "" {
 		if len(c.Via) > 0 {
-			c.ID = strings.Join(c.Via, " ")
+			c.ID = depsToID(c.Via)
 		} else {
 			c.ID = xid.New().String()
 		}
@@ -42,13 +61,29 @@ func (c *Cache) Create(ctx context.Context, tx pgx.Tx) error {
 		do nothing
 	`
 
-	if _, err := tx.Exec(ctx, query, c.ID, c.From, c.To, c.Name); err != nil {
+	if _, err := conn.Exec(ctx, query, c.ID, c.From, c.To, c.Name); err != nil {
 		return fmt.Errorf("tx.Exec failed: %w", err)
 	}
 
 	return nil
 }
 
-func ListCaches(ctx context.Context, f CacheFilter) ([]RecRelation, error) {
-	panic("unimpl")
+func ListRelationsOrCache(ctx context.Context, table string, f RelationFilter) ([]Cache, error) {
+	cols := `id, name, "from", "to"`
+
+	where, params := u.FilterBy(&f)
+	query := `
+		select ` + cols + `
+		from ` + table + `
+		` + where + `
+		limit 1000
+	`
+
+	var caches []Cache
+
+	if err := pgxscan.Select(ctx, pg, &caches, query, params...); err != nil {
+		return nil, fmt.Errorf("select failed: %w", err)
+	}
+
+	return caches, nil
 }

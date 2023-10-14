@@ -2,6 +2,7 @@ package db
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	"github.com/georgysavva/scany/v2/pgxscan"
@@ -38,7 +39,7 @@ func TestRelationCreateSuccess(t *testing.T) {
 	err = b.Create(ctx)
 	require.NoError(t, err)
 
-	ab := &Relation{From: a.ID, To: b.ID}
+	ab := &Relation{ID: "ab_"+seed,From: a.ID, To: b.ID}
 	err = ab.Create(ctx)
 	assert.NoError(t, err)
 	assert.NotNil(t, ab.ID)
@@ -58,7 +59,7 @@ func TestRelationCreateFailureToConnectToSelf(t *testing.T) {
 	err := a.Create(ctx)
 	require.NoError(t, err)
 
-	ab := &Relation{From: a.ID, To: a.ID}
+	ab := &Relation{ID: "ab_"+seed,From: a.ID, To: a.ID}
 	err = ab.Create(ctx)
 	assert.Error(t, err)
 }
@@ -85,28 +86,31 @@ func TestRelationCreateBuildsCache(t *testing.T) {
 	err = d.Create(ctx)
 	require.NoError(t, err)
 
-	ab := &Relation{From: a.ID, To: b.ID}
+	ab := &Relation{ID: "ab_"+seed,From: a.ID, To: b.ID}
 	err = ab.Create(ctx)
 	assert.NoError(t, err)
 	assert.NotNil(t, ab.ID)
 
-	bc := &Relation{From: b.ID, To: c.ID}
+	bc := &Relation{ID: "bc_"+seed,From: b.ID, To: c.ID}
+	fmt.Println("now")
 	err = bc.Create(ctx)
 	assert.NoError(t, err)
 	assert.NotNil(t, bc.ID)
 
 	t.Run("Caches 'ab'", func(t *testing.T) {
 		rows := []map[string]any{}
-		err = pgxscan.Select(ctx, pg, &rows, `select 1 from cache where "from"=$1 and "to"=$2`, a.ID, b.ID)
+		err = pgxscan.Select(ctx, pg, &rows, `select id from cache where "from"=$1 and "to"=$2`, a.ID, b.ID)
 		require.NoError(t, err)
 		require.Equal(t, 1, len(rows))
+		require.Equal(t, "cache: " + ab.ID, rows[0]["id"])
 	})
 
 	t.Run("Caches 'ac'", func(t *testing.T) {
 		rows := []map[string]any{}
-		err = pgxscan.Select(ctx, pg, &rows, `select 1 from cache where "from"=$1 and "to"=$2`, a.ID, c.ID)
+		err = pgxscan.Select(ctx, pg, &rows, `select id from cache where "from"=$1 and "to"=$2`, a.ID, c.ID)
 		require.NoError(t, err)
 		require.Equal(t, 1, len(rows))
+		require.Equal(t, "cache: " + ab.ID + " " + bc.ID, rows[0]["id"])
 	})
 
 	t.Run("Does not cache 'ad' until after 'cd' added", func(t *testing.T) {
@@ -115,7 +119,7 @@ func TestRelationCreateBuildsCache(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, 0, len(rows))
 
-		cd := &Relation{From: c.ID, To: d.ID}
+		cd := &Relation{ID: "cd_"+seed,From: c.ID, To: d.ID}
 		err = cd.Create(ctx)
 		assert.NoError(t, err)
 
@@ -143,16 +147,16 @@ func TestListRelationsRecHandlesCycles(t *testing.T) {
 		err = c.Create(ctx)
 		require.NoError(t, err)
 
-		ab := &Relation{From: a.ID, To: b.ID}
+		ab := &Relation{ID: "ab_"+seed,From: a.ID, To: b.ID}
 		err = ab.Create(ctx)
 		require.NoError(t, err)
 
-		bc := &Relation{From: b.ID, To: c.ID}
+		bc := &Relation{ID: "bc_"+seed,From: b.ID, To: c.ID}
 		err = bc.Create(ctx)
 		require.NoError(t, err)
 
 		// ca cannot be, as we already have ac (although implicitly)
-		ca := &Relation{From: c.ID, To: a.ID}
+		ca := &Relation{ID: "ca_"+seed,From: c.ID, To: a.ID}
 		err = ca.Create(ctx)
 		assert.ErrorIs(t, err, ErrCycle)
 	})
@@ -173,16 +177,16 @@ func TestListRelationsRecHandlesCycles(t *testing.T) {
 		err = c.Create(ctx)
 		require.NoError(t, err)
 
-		ab := &Relation{From: a.ID, To: b.ID}
+		ab := &Relation{ID: "ab_"+seed,From: a.ID, To: b.ID}
 		err = ab.Create(ctx)
 		require.NoError(t, err)
 
 		// ca cannot be, as we already have ac (although implicitly)
-		ca := &Relation{From: c.ID, To: a.ID}
+		ca := &Relation{ID: "ca_"+seed,From: c.ID, To: a.ID}
 		err = ca.Create(ctx)
 		require.NoError(t, err)
 
-		bc := &Relation{From: b.ID, To: c.ID}
+		bc := &Relation{ID: "bc_"+seed,From: b.ID, To: c.ID}
 		err = bc.Create(ctx)
 		assert.ErrorIs(t, err, ErrCycle)
 
@@ -221,27 +225,27 @@ func TestListRelationsRec(t *testing.T) {
 
 	// Create Relations
 
-	ab := &Relation{From: a.ID, To: b.ID}
+	ab := &Relation{ID: "ab_"+seed,From: a.ID, To: b.ID}
 	err = ab.Create(ctx)
 	require.NoError(t, err)
 
-	a2b := &Relation{From: a2.ID, To: b.ID}
+	a2b := &Relation{ID: "a2b_"+seed,From: a2.ID, To: b.ID}
 	err = a2b.Create(ctx)
 	require.NoError(t, err)
 
-	bc := &Relation{From: b.ID, To: c.ID}
+	bc := &Relation{ID: "bc_"+seed,From: b.ID, To: c.ID}
 	err = bc.Create(ctx)
 	require.NoError(t, err)
 
-	cd := &Relation{From: c.ID, To: d.ID}
+	cd := &Relation{ID: "cd_"+seed,From: c.ID, To: d.ID}
 	err = cd.Create(ctx)
 	require.NoError(t, err)
 
-	de := &Relation{From: d.ID, To: e.ID}
+	de := &Relation{ID: "de_"+seed,From: d.ID, To: e.ID}
 	err = de.Create(ctx)
 	require.NoError(t, err)
 
-	t.Run("To 'c'", func(t *testing.T) {
+	t.Run("To 'd'", func(t *testing.T) {
 		tx, err := pg.Begin(ctx)
 		require.NoError(t, err)
 
@@ -249,18 +253,21 @@ func TestListRelationsRec(t *testing.T) {
 			_ = tx.Commit(ctx)
 		}()
 
-		rels, err := listRecRelationsTo(ctx, tx, c.ID)
+		rels, err := listRecRelationsTo(ctx, tx, d.ID)
 		assert.NoError(t, err)
-		assert.Equal(t, 3, len(rels))
+		assert.Equal(t, 4, len(rels))
 
-		assert.Equal(t, bc.ID, rels[0].ID)
-		assert.Equal(t, []string{}, rels[0].Via)
+		assert.Equal(t, cd.ID, rels[0].ID)
+		assert.Equal(t, []string{cd.ID}, rels[0].Via)
 
-		assert.Equal(t, ab.ID, rels[1].ID)
-		assert.Equal(t, []string{bc.ID}, rels[1].Via)
+		assert.Equal(t, bc.ID, rels[1].ID)
+		assert.Equal(t, []string{cd.ID, bc.ID}, rels[1].Via)
 
-		assert.Equal(t, a2b.ID, rels[2].ID)
-		assert.Equal(t, []string{bc.ID}, rels[2].Via)
+		assert.Equal(t, ab.ID, rels[2].ID)
+		assert.Equal(t, []string{cd.ID, bc.ID, ab.ID}, rels[2].Via)
+
+		assert.Equal(t, a2b.ID, rels[3].ID)
+		assert.Equal(t, []string{cd.ID, bc.ID, a2b.ID}, rels[3].Via)
 	})
 
 	t.Run("From 'c'", func(t *testing.T) {
@@ -275,9 +282,75 @@ func TestListRelationsRec(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Equal(t, 2, len(rels))
 		assert.Equal(t, cd.ID, rels[0].ID)
-		assert.Equal(t, []string{}, rels[0].Via)
+		assert.Equal(t, []string{cd.ID}, rels[0].Via)
 
 		assert.Equal(t, de.ID, rels[1].ID)
-		assert.Equal(t, []string{cd.ID}, rels[1].Via)
+		assert.Equal(t, []string{cd.ID, de.ID}, rels[1].Via)
 	})
+}
+
+func TestRelationsDelete(t *testing.T) {
+	ctx := context.Background()
+	seed := xid.New().String()
+
+	// Entities
+
+	a := &Entity{ID: "user:a_" + seed}
+	err := a.Create(ctx)
+	require.NoError(t, err)
+
+	b := &Entity{ID: "user:b_" + seed}
+	err = b.Create(ctx)
+	require.NoError(t, err)
+
+	c := &Entity{ID: "user:c_" + seed}
+	err = c.Create(ctx)
+	require.NoError(t, err)
+
+	// Relations
+
+	ab := &Relation{ID: "ab_" + seed, From: a.ID, To: b.ID}
+	err = ab.Create(ctx)
+	require.NoError(t, err)
+
+	bc := &Relation{ID: "bc_" + seed, From: b.ID, To: c.ID}
+	err = bc.Create(ctx)
+	require.NoError(t, err)
+
+	// Caches
+
+	abcaches, err := ListRelationsOrCache(ctx, "cache", RelationFilter{
+		From: &a.ID,
+		To:   &b.ID,
+	})
+	require.NoError(t, err)
+	require.Equal(t, 1, len(abcaches))
+
+	accaches, err := ListRelationsOrCache(ctx, "cache", RelationFilter{
+		From: &a.ID,
+		To:   &c.ID,
+	})
+	require.NoError(t, err)
+	require.Equal(t, 1, len(accaches))
+
+	// Delete
+
+	err = ab.Delete(ctx)
+	require.NoError(t, err)
+
+	// Caches after deletion
+
+	abcaches, err = ListRelationsOrCache(ctx, "cache", RelationFilter{
+		From: &a.ID,
+		To:   &b.ID,
+	})
+	require.NoError(t, err)
+	require.Equal(t, 0, len(abcaches))
+
+	accaches, err = ListRelationsOrCache(ctx, "cache", RelationFilter{
+		From: &a.ID,
+		To:   &c.ID,
+	})
+	require.NoError(t, err)
+	require.Equal(t, 0, len(accaches))
 }
