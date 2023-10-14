@@ -156,6 +156,10 @@ func TestListRelationsRecHandlesCycles(t *testing.T) {
 		err = bc.Create(ctx)
 		require.NoError(t, err)
 
+		// Ensure we are not relying on cache
+		err = FlushCache(ctx)
+		require.NoError(t, err)
+
 		// ca cannot be, as we already have ac (although implicitly)
 		ca := &Relation{ID: "ca_" + seed, From: c.ID, To: a.ID}
 		err = ca.Create(ctx)
@@ -182,11 +186,15 @@ func TestListRelationsRecHandlesCycles(t *testing.T) {
 		err = ab.Create(ctx)
 		require.NoError(t, err)
 
-		// ca cannot be, as we already have ac (although implicitly)
 		ca := &Relation{ID: "ca_" + seed, From: c.ID, To: a.ID}
 		err = ca.Create(ctx)
 		require.NoError(t, err)
 
+		// Ensure we are not relying on cache
+		err = FlushCache(ctx)
+		require.NoError(t, err)
+
+		// bc cannot be, as we already have ca
 		bc := &Relation{ID: "bc_" + seed, From: b.ID, To: c.ID}
 		err = bc.Create(ctx)
 		assert.ErrorIs(t, err, ErrCycle)

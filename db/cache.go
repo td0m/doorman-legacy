@@ -87,3 +87,11 @@ func ListRelationsOrCache(ctx context.Context, table string, f RelationFilter) (
 
 	return caches, nil
 }
+
+func FlushCache(ctx context.Context) error {
+	query := `delete from cache`
+	if _, err := pg.Exec(ctx, query); err != nil {
+		return fmt.Errorf("pg.Exec failed: %w", err)
+	}
+	return nil
+}
