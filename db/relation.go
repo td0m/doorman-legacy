@@ -2,6 +2,7 @@ package db
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -10,6 +11,8 @@ import (
 	"github.com/rs/xid"
 	"golang.org/x/exp/slog"
 )
+
+var ErrCycle = errors.New("cycle detected")
 
 type RecRelation struct {
 	Via []string
@@ -86,15 +89,24 @@ func (r *Relation) Create(ctx context.Context) error {
 			return fmt.Errorf("listRecRelationsFrom failed: %w", err)
 		}
 
+		// Because of the nature of cycles, this will always match.
+		// No need for the second statement.
+		for _, from := range from {
+			if from.From == r.To {
+				return ErrCycle
+			}
+		}
+		// for _, to := range to {
+		// 	if to.To == r.From {
+		// 		return ErrCycle
+		// 	}
+		// }
+
 		from = append(from, RecRelation{Relation: *r})
 		to = append(to, RecRelation{Relation: *r})
 
 		for _, from := range from {
 			for _, to := range to {
-				if from.ID == r.From && to.ID == r.To {
-					fmt.Println("skip self")
-					continue
-				}
 				cache := &Cache{
 					Via:  append(append(from.Via, r.ID), to.Via...),
 					From: from.From,
@@ -136,6 +148,7 @@ func listRecRelationsTo(ctx context.Context, tx pgx.Tx, id string) ([]RecRelatio
 				array_append(relate_to.via, relate_to.id) as via
 			from relations r
 			inner join relate_to on relate_to."from" = r."to"
+			where r."from" != $1
 		) select * from relate_to
 	`
 
@@ -168,6 +181,7 @@ func listRecRelationsFrom(ctx context.Context, tx pgx.Tx, id string) ([]RecRelat
 				array_append(relate_from.via, relate_from.id) as via
 			from relations r
 			inner join relate_from on relate_from."to" = r."from"
+			where r."to" != $1
 		) select * from relate_from
 	`
 

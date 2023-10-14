@@ -127,30 +127,66 @@ func TestRelationCreateBuildsCache(t *testing.T) {
 }
 
 func TestListRelationsRecHandlesCycles(t *testing.T) {
-	ctx := context.Background()
-	seed := xid.New().String()
+	t.Run("Left to Right", func(t *testing.T) {
+		ctx := context.Background()
+		seed := xid.New().String()
 
-	a := &Entity{ID: "user:a_" + seed}
-	err := a.Create(ctx)
-	require.NoError(t, err)
+		a := &Entity{ID: "user:a_" + seed}
+		err := a.Create(ctx)
+		require.NoError(t, err)
 
-	b := &Entity{ID: "user:b_" + seed}
-	err = b.Create(ctx)
-	require.NoError(t, err)
+		b := &Entity{ID: "user:b_" + seed}
+		err = b.Create(ctx)
+		require.NoError(t, err)
 
-	c := &Entity{ID: "user:c_" + seed}
-	err = c.Create(ctx)
-	require.NoError(t, err)
+		c := &Entity{ID: "user:c_" + seed}
+		err = c.Create(ctx)
+		require.NoError(t, err)
 
-	ab := &Relation{From: a.ID, To: b.ID}
-	err = ab.Create(ctx)
-	require.NoError(t, err)
+		ab := &Relation{From: a.ID, To: b.ID}
+		err = ab.Create(ctx)
+		require.NoError(t, err)
 
-	bc := &Relation{From: b.ID, To: c.ID}
-	err = bc.Create(ctx)
-	require.NoError(t, err)
+		bc := &Relation{From: b.ID, To: c.ID}
+		err = bc.Create(ctx)
+		require.NoError(t, err)
 
-	// ca cannot be!
+		// ca cannot be, as we already have ac (although implicitly)
+		ca := &Relation{From: c.ID, To: a.ID}
+		err = ca.Create(ctx)
+		assert.ErrorIs(t, err, ErrCycle)
+	})
+
+	t.Run("Right To Left", func(t *testing.T) {
+		ctx := context.Background()
+		seed := xid.New().String()
+
+		a := &Entity{ID: "user:a_" + seed}
+		err := a.Create(ctx)
+		require.NoError(t, err)
+
+		b := &Entity{ID: "user:b_" + seed}
+		err = b.Create(ctx)
+		require.NoError(t, err)
+
+		c := &Entity{ID: "user:c_" + seed}
+		err = c.Create(ctx)
+		require.NoError(t, err)
+
+		ab := &Relation{From: a.ID, To: b.ID}
+		err = ab.Create(ctx)
+		require.NoError(t, err)
+
+		// ca cannot be, as we already have ac (although implicitly)
+		ca := &Relation{From: c.ID, To: a.ID}
+		err = ca.Create(ctx)
+		require.NoError(t, err)
+
+		bc := &Relation{From: b.ID, To: c.ID}
+		err = bc.Create(ctx)
+		assert.ErrorIs(t, err, ErrCycle)
+
+	})
 }
 
 func TestListRelationsRec(t *testing.T) {
