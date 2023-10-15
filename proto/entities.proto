@@ -43,6 +43,7 @@ message Entity {
 
 message EntitiesCreateRequest {
 	string id = 1;
+	google.protobuf.Struct attrs = 2;
 }
 
 message EntitiesRetrieveRequest {

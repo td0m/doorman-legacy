@@ -40,14 +40,16 @@ message Relation {
 	string id = 1;
 	google.protobuf.Struct attrs = 2;
 	string from_id = 3;
-	string to_id = 4;
+	optional string name = 4;
+	string to_id = 5;
 }
 
 message RelationsCreateRequest {
 	string id = 1;
 	google.protobuf.Struct attrs = 2;
 	string from_id = 3;
-	string to_id = 4;
+	optional string name = 4;
+	string to_id = 5;
 }
 
 message RelationsRetrieveRequest {
@@ -57,9 +59,11 @@ message RelationsRetrieveRequest {
 message RelationsListRequest {
 	optional string from_id = 1;
 	optional string from_type = 2;
-	optional string to_id = 3;
-	optional string to_type = 4;
-	optional string pagination_token = 5;
+	optional string name = 3;
+	optional bool no_cache = 4;
+	optional string to_id = 5;
+	optional string to_type = 6;
+	optional string pagination_token = 7;
 }
 
 message RelationsListResponse {
