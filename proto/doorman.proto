@@ -1,0 +1,26 @@
+syntax = "proto3";
+option go_package = "github.com/td0m/doorman/pb";
+
+package doorman;
+
+import "google/api/annotations.proto";
+
+service EntitiesService {
+	rpc Create(EntitiesCreateRequest) returns (Entity) {
+		option (google.api.http) = {
+			post: "/user/create"
+			body: "*"
+		};
+	};
+}
+
+message EntitiesCreateRequest {
+}
+
+message Entity {
+	string id = 1;
+}
+
+service RelationsService {
+}
+
