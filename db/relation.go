@@ -130,6 +130,19 @@ func listDerivativeCaches(ctx context.Context, tx pgxscan.Querier, r Relation) (
 	froms = append(froms, RecRelation{Relation: r})
 	tos = append(tos, RecRelation{Relation: r})
 
+	// Inherit the last name
+	var name *string
+	for _, from := range froms {
+		if from.Name != nil {
+			name = from.Name
+		}
+	}
+	for _, to := range tos {
+		if to.Name != nil {
+			name = to.Name
+		}
+	}
+
 	caches := make([]Cache, len(froms)*len(tos))
 	for i, from := range froms {
 		for j, to := range tos {
@@ -138,7 +151,7 @@ func listDerivativeCaches(ctx context.Context, tx pgxscan.Querier, r Relation) (
 				ID:   depsToID(deps),
 				From: from.From,
 				To:   to.To,
-				Name: nil,
+				Name: name,
 			}
 		}
 	}

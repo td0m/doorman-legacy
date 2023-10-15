@@ -202,6 +202,45 @@ func TestListRelationsRecHandlesCycles(t *testing.T) {
 	})
 }
 
+func TestCreateRelationWithName(t *testing.T) {
+	ctx := context.Background()
+	seed := xid.New().String()
+
+	// Create entities
+
+	a := &Entity{ID: "user:a_" + seed}
+	err := a.Create(ctx)
+	require.NoError(t, err)
+
+	b := &Entity{ID: "user:b_" + seed}
+	err = b.Create(ctx)
+	require.NoError(t, err)
+
+	c := &Entity{ID: "user:c_" + seed}
+	err = c.Create(ctx)
+	require.NoError(t, err)
+
+	// Create relations
+
+	reader := "reader"
+	ab := &Relation{ID: "ab_" + seed, From: a.ID, To: b.ID, Name: &reader}
+	err = ab.Create(ctx)
+	require.NoError(t, err)
+
+	writer := "writer"
+	bc := &Relation{ID: "bc_" + seed, From: b.ID, To: c.ID, Name: &writer}
+	err = bc.Create(ctx)
+	require.NoError(t, err)
+
+	// Last (on side of "to") name is inherited
+
+	rows := []map[string]any{}
+	err = pgxscan.Select(ctx, pg, &rows, `select name from cache where "from"=$1 and "to"=$2`, a.ID, c.ID)
+	require.NoError(t, err)
+	require.Equal(t, 1, len(rows))
+	require.Equal(t, writer, rows[0]["name"])
+}
+
 func TestListRelationsRec(t *testing.T) {
 	ctx := context.Background()
 	seed := xid.New().String()
@@ -404,31 +443,31 @@ func TestCreateRelationsInParallel(t *testing.T) {
 	funcs := []func(){
 		func() {
 			ab = &Relation{ID: "ab_" + seed, From: a.ID, To: b.ID}
-			err:= ab.Create(ctx)
+			err := ab.Create(ctx)
 			require.NoError(t, err)
 		},
 
 		func() {
 			a2b = &Relation{ID: "a2b_" + seed, From: a2.ID, To: b.ID}
-			err:= a2b.Create(ctx)
+			err := a2b.Create(ctx)
 			require.NoError(t, err)
 		},
 
 		func() {
 			bc = &Relation{ID: "bc_" + seed, From: b.ID, To: c.ID}
-			err:= bc.Create(ctx)
+			err := bc.Create(ctx)
 			require.NoError(t, err)
 		},
 
 		func() {
 			cd = &Relation{ID: "cd_" + seed, From: c.ID, To: d.ID}
-			err:= cd.Create(ctx)
+			err := cd.Create(ctx)
 			require.NoError(t, err)
 		},
 
 		func() {
 			de = &Relation{ID: "de_" + seed, From: d.ID, To: e.ID}
-			err:= de.Create(ctx)
+			err := de.Create(ctx)
 			require.NoError(t, err)
 		},
 	}
