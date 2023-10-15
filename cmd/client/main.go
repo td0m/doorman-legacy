@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"flag"
 	"fmt"
 	"log"
 	"time"
@@ -11,21 +12,27 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 )
 
+var (
+	grpcEndpoint = flag.String("grpc-server-endpoint", "localhost:13335", "gRPC server endpoint")
+)
+
 func main() {
-	addr := "localhost:3000"
+	flag.Parse()
+
 	// Set up a connection to the server.
-	conn, err := grpc.Dial(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	conn, err := grpc.Dial(*grpcEndpoint, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		log.Fatalf("did not connect: %v", err)
 	}
 	defer conn.Close()
-	c := pb.NewEntitiesServiceClient(conn)
+	c := pb.NewEntitiesClient(conn)
 
 	// Contact the server and print out its response.
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 
 	res, err := c.Create(ctx, &pb.EntitiesCreateRequest{
+		Id: "foo:bar",
 	})
 	fmt.Println(res, err)
 }

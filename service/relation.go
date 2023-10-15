@@ -5,86 +5,33 @@ import (
 	"fmt"
 
 	"github.com/td0m/doorman/db"
+	pb "github.com/td0m/doorman/gen/go"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
-type Relation struct {
-	ID   string
-	Name *string
-	From string
-	To   string
-}
 type Relations struct {
+	*pb.UnimplementedRelationsServer
 }
 
-type RelationsListRequest struct {
-	NoCache         bool
-	From            *string
-	FromType        *string
-	To              *string
-	ToType          *string
-	Name            *string
-	PaginationToken *string
-}
-
-type RelationList struct {
-	Items           []Relation
-	PaginationToken string
-}
-
-type RelationsCreate struct {
-	From string
-	To   string
-	Name *string
-}
-
-// TODO: MIGHT be better to just return all relations between the two entities
-func (*Relations) Create(ctx context.Context, request RelationsCreate) (*Relation, error) {
+func (rs *Relations) Create(ctx context.Context, request *pb.RelationsCreateRequest) (*pb.Relation, error) {
 	r := &db.Relation{
-		From: request.From,
-		To:   request.To,
+		From: request.FromId,
+		To:   request.ToId,
 		Name: request.Name,
 	}
 	if err := r.Create(ctx); err != nil {
 		return nil, fmt.Errorf("create failed: %w", err)
 	}
 
-	res := mapRelationFromDB(*r)
-	return &res, nil
+	return mapRelationFromDB(*r), nil
 }
-
-func mapRelationFromDB(r db.Relation) Relation {
-	return Relation{
-		ID:   r.ID,
-		From: r.From,
-		To:   r.To,
-		Name: r.Name,
-	}
+func (rs *Relations) Retrieve(ctx context.Context, request *pb.RelationsRetrieveRequest) (*pb.Relation, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method Retrieve not implemented")
 }
-
-func mapRelationFromDBCache(r db.Cache) Relation {
-	return Relation{
-		ID:   r.ID,
-		From: r.From,
-		To:   r.To,
-		Name: r.Name,
-	}
-}
-func (*Relations) Delete(ctx context.Context, id string) error {
-	r, err := db.RetrieveRelation(ctx, id)
-	if err != nil {
-		return fmt.Errorf("db.RetrieveRelation failed: %w", err)
-	}
-
-	if err := r.Delete(ctx); err != nil {
-		return fmt.Errorf("reaction.Delete failed: %w", err)
-	}
-	return nil
-}
-
-// GET /relations?no_cache=true&from=user:alice&to_type=collection
-func (*Relations) List(ctx context.Context, request RelationsListRequest) (RelationList, error) {
+func (rs *Relations) List(ctx context.Context, request *pb.RelationsListRequest) (*pb.RelationsListResponse, error) {
 	table := "cache"
-	if request.NoCache {
+	if request.NoCache != nil && !*request.NoCache {
 		table = "relations"
 	}
 
@@ -92,24 +39,56 @@ func (*Relations) List(ctx context.Context, request RelationsListRequest) (Relat
 
 	f := db.RelationFilter{
 		AfterID:  request.PaginationToken,
-		From:     request.From,
+		From:     request.FromId,
 		FromType: request.FromType,
 		Name:     request.Name,
-		To:       request.To,
+		To:       request.ToId,
 		ToType:   request.ToType,
 	}
 
 	relations, err := db.ListRelationsOrCache(ctx, table, f)
 	if err != nil {
-		return RelationList{}, fmt.Errorf("db failed: %w", err)
+		return &pb.RelationsListResponse{}, fmt.Errorf("db failed: %w", err)
 	}
 
-	items := make([]Relation, len(relations))
+	items := make([]*pb.Relation, len(relations))
 	for i := range relations {
 		items[i] = mapRelationFromDBCache(relations[i])
 	}
 
-	return RelationList{
+	return &pb.RelationsListResponse{
 		Items: items,
 	}, nil
+}
+func (rs *Relations) Update(ctx context.Context, request *pb.RelationsUpdateRequest) (*pb.Relation, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method Update not implemented")
+}
+func (rs *Relations) Delete(ctx context.Context, request *pb.RelationsDeleteRequest) (*pb.RelationsDeleteResponse, error) {
+	r, err := db.RetrieveRelation(ctx, request.Id)
+	if err != nil {
+		return nil, fmt.Errorf("db.RetrieveRelation failed: %w", err)
+	}
+
+	if err := r.Delete(ctx); err != nil {
+		return nil, fmt.Errorf("reaction.Delete failed: %w", err)
+	}
+	return &pb.RelationsDeleteResponse{}, nil
+}
+
+func mapRelationFromDB(r db.Relation) *pb.Relation {
+	return &pb.Relation{
+		Id:   r.ID,
+		FromId: r.From,
+		ToId:   r.To,
+		Name: r.Name,
+	}
+}
+
+func mapRelationFromDBCache(r db.Cache) *pb.Relation {
+	return &pb.Relation{
+		Id:   r.ID,
+		FromId: r.From,
+		ToId:   r.To,
+		Name: r.Name,
+	}
 }

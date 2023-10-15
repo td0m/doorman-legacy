@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"flag"
 	"fmt"
 	"net"
 	"net/http"
@@ -12,44 +11,37 @@ import (
 	"syscall"
 
 	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
+	"github.com/td0m/doorman/db"
 	pb "github.com/td0m/doorman/gen/go"
+	"github.com/td0m/doorman/service"
 	"golang.org/x/net/http2"
 	"golang.org/x/net/http2/h2c"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/reflection"
-	"google.golang.org/grpc/status"
 )
-
-var (
-	// command-line options:
-	// gRPC server endpoint
-	grpcServerEndpoint = flag.String("grpc-server-endpoint", "localhost:9090", "gRPC server endpoint")
-)
-
-type Entities struct {
-	*pb.UnimplementedEntitiesServiceServer
-}
-
-
-func (e *Entities) Create(ctx context.Context, request *pb.EntitiesCreateRequest) (*pb.Entity, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method Create not implemented")
-}
 
 func run() error {
 	ctx := context.Background()
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	entities := &Entities{}
+	err := db.Init(ctx)
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
 
-	sock, err := net.Listen("tcp", "localhost:3000")
+	sock, err := net.Listen("tcp", "localhost:13335")
 	if err != nil {
 		return fmt.Errorf("net.Listen failed: %w", err)
 	}
 
+	entities := &service.Entities{}
+	relations := &service.Relations{}
+
 	s := grpc.NewServer()
-	pb.RegisterEntitiesServiceServer(s, entities)
+	pb.RegisterEntitiesServer(s, entities)
+	pb.RegisterRelationsServer(s, relations)
 	reflection.Register(s)
 
 	// Capture os signals for graceful shutdown
@@ -62,8 +54,12 @@ func run() error {
 				s.ServeHTTP(w, r)
 			} else {
 				mux := runtime.NewServeMux()
-				err := pb.RegisterEntitiesServiceHandlerServer(ctx, mux, entities)
-				fmt.Println(err)
+				if err := pb.RegisterEntitiesHandlerServer(ctx, mux, entities); err != nil {
+					panic(fmt.Errorf("RegisterEntitiesHandlerServer failed: %w", err))
+				}
+				if err := pb.RegisterRelationsHandlerServer(ctx, mux, relations); err != nil {
+					panic(fmt.Errorf("RegisterRelationsHandlerServer failed: %w", err))
+				}
 				mux.ServeHTTP(w, r)
 			}
 		})
@@ -75,13 +71,12 @@ func run() error {
 	}(sock)
 
 	<-sigchan
-  return nil
+	return nil
 }
 
 func main() {
-
-  if err := run(); err != nil {
-    fmt.Println(err)
-    os.Exit(1)
-  }
+	if err := run(); err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
 }
