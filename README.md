@@ -6,78 +6,69 @@ My take on simplified access control. Implemented in < 1000 lines of Go.
 
 Essentially just a directed acyclic graph db built on top of Postgres with a few added constraints to enforce good structure and conventions.
 
-```mermaid
-flowchart LR
-  subgraph users
-    bob
-    alice
-  end
-  subgraph collections
-    management_department
-  end
+<!-- ## Philosophy -->
+<!---->
+<!-- My first encounter with access control systems was -->
+<!-- [Gatekeeper](https://github.com/uatuko/gatekeeper); an open source project we -->
+<!-- bootstrapped at work. -->
+<!---->
+<!-- Honestly, I liked a lot of concepts behind it, and it felt much easier to -->
+<!-- understand and limited in scope (in a good way) compared to other solutions out -->
+<!-- there ([OpenFGA](https://openfga.dev), [Ory Keto](https://ory.sh/keto)). -->
+<!---->
+<!-- After some time using it, I had an idea for how the concepts could be more generalized -->
+<!-- and the codebase simplified. So I set out to build a solution in less than 1,000 lines. -->
 
-  subgraph roles
-    order_manager
-  end
+<!-- ## Structure and Validation -->
+<!---->
+<!-- ```mermaid -->
+<!-- flowchart LR -->
+<!--   subgraph users -->
+<!--     bob -->
+<!--     alice -->
+<!--   end -->
+<!--   subgraph collections -->
+<!--     management_department -->
+<!--   end -->
+<!---->
+<!--   subgraph roles -->
+<!--     order_manager -->
+<!--   end -->
+<!---->
+<!--   subgraph permissions -->
+<!--     orders.update -->
+<!--     orders.refund -->
+<!--     orders.cancel -->
+<!--   end -->
+<!---->
+<!--   subgraph orders -->
+<!--     order_a -->
+<!--   end -->
+<!---->
+<!--   alice --> management_department -->
+<!--   management_department --> order_manager -->
+<!--   order_manager --> orders.update -->
+<!--   order_manager --> orders.refund -->
+<!--   order_manager --> orders.cancel -->
+<!---->
+<!--   bob --> order_a -->
+<!--   bob --> order_manager -->
+<!-- ``` -->
 
-  subgraph permissions
-    orders.update
-    orders.refund
-    orders.cancel
-  end
+## Quick Start
 
-  subgraph orders
-    order_a
-  end
-
-  alice --> management_department
-  management_department --> order_manager
-  order_manager --> orders.update
-  order_manager --> orders.refund
-  order_manager --> orders.cancel
-
-  bob --> order_a
-  bob --> order_manager
+```
+go get github.com/td0m/doorman/cmd/
 ```
 
 ## Usage
 
-- Relations
-  - Check
-  - Create
-  - Delete
-  - Get
-  - List
-  - RebuildCache
-- Entities
-  - Create
-  - Delete
-  - Get
-  - List
-  - Update
+Doorman can be used via one of the following:
+ - JSON API
+ - gRPC service
+ - In-Process Go library
 
-```go
-entities.Create(ctx, entities.CreateRequest{
-    Type: "user",
-    ID: "dom"
-})
-```
-
-```go
-relations.Create(ctx, relations.CreateRequest{
-    From: relations.Entity{ID: "alice", Type: "user"},
-    To: relations.Entity{ID: "1", Type: "order"},
-    Name: "owner",
-})
-```
-
-```go
-relations.List(ctx, relations.CheckRequest{
-    From: relations.Entity{ID: "alice", Type: "user"},
-    To: relations.Entity{ID: "1", Type: "order"},
-    Name: &"owner",
-})
-```
+TODO: cli via json or grpc?
 
 TODO: rebuild cache endpoint.
 
