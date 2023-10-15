@@ -232,13 +232,31 @@ func TestCreateRelationWithName(t *testing.T) {
 	err = bc.Create(ctx)
 	require.NoError(t, err)
 
+	{
+		rows := []map[string]any{}
+		err = pgxscan.Select(ctx, pg, &rows, `select name from cache where "from"=$1 and "to"=$2`, a.ID, b.ID)
+		assert.NoError(t, err)
+		assert.Equal(t, 1, len(rows))
+		assert.Equal(t, reader, rows[0]["name"])
+	}
+
+	{
+		rows := []map[string]any{}
+		err = pgxscan.Select(ctx, pg, &rows, `select name from cache where "from"=$1 and "to"=$2`, b.ID, c.ID)
+		assert.NoError(t, err)
+		assert.Equal(t, 1, len(rows))
+		assert.Equal(t, writer, rows[0]["name"])
+	}
+
 	// Last (on side of "to") name is inherited
 
-	rows := []map[string]any{}
-	err = pgxscan.Select(ctx, pg, &rows, `select name from cache where "from"=$1 and "to"=$2`, a.ID, c.ID)
-	require.NoError(t, err)
-	require.Equal(t, 1, len(rows))
-	require.Equal(t, writer, rows[0]["name"])
+	{
+		rows := []map[string]any{}
+		err = pgxscan.Select(ctx, pg, &rows, `select name from cache where "from"=$1 and "to"=$2`, a.ID, c.ID)
+		assert.NoError(t, err)
+		assert.Equal(t, 1, len(rows))
+		assert.Equal(t, writer, rows[0]["name"])
+	}
 }
 
 func TestListRelationsRec(t *testing.T) {

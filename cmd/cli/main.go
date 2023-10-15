@@ -9,6 +9,8 @@ import (
 	"os"
 	"strings"
 
+	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/lipgloss/table"
 	"github.com/td0m/poc-doorman/db"
 	"github.com/td0m/poc-doorman/service"
 )
@@ -120,6 +122,8 @@ func app(ctx context.Context) error {
 	case "connections":
 		from := flag.String("from", "", "from")
 		to := flag.String("to", "", "to")
+		name := flag.String("name", "", "name")
+
 		os.Args = os.Args[1:]
 		flag.Parse()
 
@@ -129,28 +133,29 @@ func app(ctx context.Context) error {
 		if *to == "" {
 			to = nil
 		}
+		if *name == "" {
+			name = nil
+		}
 
 		res, err := relations.List(ctx, service.RelationsListRequest{
 			From: from,
 			To:   to,
+			Name: name,
 		})
 		if err != nil {
 			return err
 		}
 
-		for _, r := range res.Items {
-			printRel(&r)
-		}
+		printRels(res.Items)
 	case "connect":
 		if len(os.Args) < 4 {
 			return fmt.Errorf("usage: doorman connections new [from] [to]")
 		}
-
-		from, to := os.Args[2], os.Args[3]
-
-		os.Args = os.Args[3:]
+		os.Args = os.Args[1:]
 		name := flag.String("name", "", "the name of the relation")
 		flag.Parse()
+
+		from, to := flag.Arg(0), flag.Arg(1)
 
 		if *name == "" {
 			name = nil
@@ -165,7 +170,11 @@ func app(ctx context.Context) error {
 			fmt.Println(err)
 			os.Exit(1)
 		}
-		fmt.Println("👍", rel.ID)
+		if name == nil {
+			empty := ""
+			name = &empty
+		}
+		fmt.Println("👍", rel.ID, *name)
 
 	case "new":
 		if len(os.Args) != 3 {
@@ -185,8 +194,47 @@ func app(ctx context.Context) error {
 	return nil
 }
 
-func printRel(r *service.Relation) {
-	fmt.Printf("%s => %s \t\t(id='%s')\n", r.From, r.To, r.ID)
+func printRels(rs []service.Relation) {
+
+	rows := [][]string{}
+	for _, r := range rs {
+		id := " - "
+		if !strings.HasPrefix(r.ID, "cache:") {
+			id = r.ID
+		}
+
+		name := ""
+		if r.Name != nil {
+			name = *r.Name
+		}
+		rows = append(rows, []string{id, emojify(r.From), name, emojify(r.To)})
+	}
+	table := table.New().
+		Border(lipgloss.NormalBorder()).
+		Headers("ID", "From", "Name", "To").
+    StyleFunc(func(row, _ int) lipgloss.Style {
+        switch {
+        case row == 0:
+            return lipgloss.NewStyle().Foreground(lipgloss.Color("2")).Bold(true).Padding(0, 2)
+        default:
+            return lipgloss.NewStyle().Padding(0, 1)
+        }
+    }).
+		Rows(rows...)
+
+	fmt.Println(table.Render())
+}
+
+func emojify(id string) string {
+	parts := strings.SplitN(id, ":", 2)
+	if len(parts) == 1 {
+		return id
+	}
+	rest := parts[1]
+	if parts[0] == "user" {
+		return "U " + rest
+	}
+	return id
 }
 
 func printAttrs(attrs map[string]any) {

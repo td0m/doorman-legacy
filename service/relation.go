@@ -57,6 +57,7 @@ func mapRelationFromDB(r db.Relation) Relation {
 		ID:   r.ID,
 		From: r.From,
 		To:   r.To,
+		Name: r.Name,
 	}
 }
 
@@ -65,6 +66,7 @@ func mapRelationFromDBCache(r db.Cache) Relation {
 		ID:   r.ID,
 		From: r.From,
 		To:   r.To,
+		Name: r.Name,
 	}
 }
 func (*Relations) Delete(ctx context.Context, id string) error {
@@ -85,6 +87,8 @@ func (*Relations) List(ctx context.Context, request RelationsListRequest) (Relat
 	if request.NoCache {
 		table = "relations"
 	}
+
+	// TODO: if from or to specified we validate it here
 
 	f := db.RelationFilter{
 		AfterID:  request.PaginationToken,
