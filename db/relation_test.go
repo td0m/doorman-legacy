@@ -11,7 +11,7 @@ import (
 	"github.com/rs/xid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/td0m/poc-doorman/u"
+	"github.com/td0m/doorman/u"
 )
 
 func TestMain(m *testing.M) {

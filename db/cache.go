@@ -8,7 +8,7 @@ import (
 	"github.com/georgysavva/scany/v2/pgxscan"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/rs/xid"
-	"github.com/td0m/poc-doorman/u"
+	"github.com/td0m/doorman/u"
 )
 
 type Cache struct {

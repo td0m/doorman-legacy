@@ -11,8 +11,8 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/lipgloss/table"
-	"github.com/td0m/poc-doorman/db"
-	"github.com/td0m/poc-doorman/service"
+	"github.com/td0m/doorman/db"
+	"github.com/td0m/doorman/service"
 )
 
 var usage = `doorman {{version}}

@@ -1,4 +1,4 @@
-module github.com/td0m/poc-doorman
+module github.com/td0m/doorman
 
 go 1.20
 

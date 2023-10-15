@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/td0m/poc-doorman/db"
+	"github.com/td0m/doorman/db"
 )
 
 type Entities struct{}
