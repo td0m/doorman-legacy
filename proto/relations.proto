@@ -1,0 +1,80 @@
+syntax = "proto3";
+option go_package = "github.com/td0m/doorman/gen/go";
+
+package doorman;
+
+import "google/api/annotations.proto";
+import "google/protobuf/struct.proto";
+
+service Relations {
+	rpc Create(RelationsCreateRequest) returns (Relation) {
+		option (google.api.http) = {
+			post: "/relations"
+			body: "*"
+		};
+	};
+	rpc Retrieve(RelationsRetrieveRequest) returns (Relation) {
+		option (google.api.http) = {
+			get: "/relations/{id}"
+		};
+	};
+	rpc List(RelationsListRequest) returns (RelationsListResponse) {
+		option (google.api.http) = {
+			get: "/relations"
+		};
+	};
+	rpc Update(RelationsUpdateRequest) returns (Relation) {
+		option (google.api.http) = {
+			patch: "/relations/{id}"
+			body: "*"
+		};
+	};
+	rpc Delete(RelationsDeleteRequest) returns (RelationsDeleteResponse) {
+		option (google.api.http) = {
+			delete: "/relations/{id}"
+		};
+	};
+}
+
+message Relation {
+	string id = 1;
+	google.protobuf.Struct attrs = 2;
+	string from_id = 3;
+	string to_id = 4;
+}
+
+message RelationsCreateRequest {
+	string id = 1;
+	google.protobuf.Struct attrs = 2;
+	string from_id = 3;
+	string to_id = 4;
+}
+
+message RelationsRetrieveRequest {
+	string id = 1;
+}
+
+message RelationsListRequest {
+	optional string from_id = 1;
+	optional string from_type = 2;
+	optional string to_id = 3;
+	optional string to_type = 4;
+	optional string pagination_token = 5;
+}
+
+message RelationsListResponse {
+	repeated Relation items = 1;
+	optional string pagination_token = 2;
+}
+
+message RelationsUpdateRequest {
+	string id = 1;
+	google.protobuf.Struct attrs = 2;
+}
+
+message RelationsDeleteRequest {
+	string id = 1;
+}
+
+message RelationsDeleteResponse { }
+

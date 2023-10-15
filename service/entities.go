@@ -5,9 +5,14 @@ import (
 	"fmt"
 
 	"github.com/td0m/doorman/db"
+	pb "github.com/td0m/doorman/gen/go"
 )
 
-type Entities struct{}
+type Entities struct {
+	*pb.UnimplementedEntitiesServer
+}
+
+type Entities2 struct{}
 
 type Entity struct {
 	ID    string
@@ -24,7 +29,7 @@ type CreateEntity struct {
 	Attrs map[string]any
 }
 
-func (es *Entities) Create(ctx context.Context, request CreateEntity) (*Entity, error) {
+func (es *Entities2) Create(ctx context.Context, request CreateEntity) (*Entity, error) {
 	e := &db.Entity{
 		ID:    request.ID,
 		Attrs: request.Attrs,
@@ -37,7 +42,7 @@ func (es *Entities) Create(ctx context.Context, request CreateEntity) (*Entity, 
 	return &res, nil
 }
 
-func (es *Entities) Update(ctx context.Context, request UpdateEntity) (*Entity, error) {
+func (es *Entities2) Update(ctx context.Context, request UpdateEntity) (*Entity, error) {
 	entity, err := db.RetrieveEntity(ctx, request.ID)
 	if err != nil {
 		return nil, fmt.Errorf("db.RetrieveEntity failed: %w", err)
