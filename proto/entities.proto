@@ -1,0 +1,73 @@
+syntax = "proto3";
+option go_package = "github.com/td0m/doorman/gen/go";
+
+package doorman;
+
+import "google/api/annotations.proto";
+import "google/protobuf/struct.proto";
+
+service Entities {
+	rpc Create(EntitiesCreateRequest) returns (Entity) {
+		option (google.api.http) = {
+			post: "/entities"
+			body: "*"
+		};
+	};
+	rpc Retrieve(EntitiesRetrieveRequest) returns (Entity) {
+		option (google.api.http) = {
+			get: "/entities/{id}"
+		};
+	};
+	rpc List(EntitiesListRequest) returns (EntitiesListResponse) {
+		option (google.api.http) = {
+			get: "/entities"
+		};
+	};
+	rpc Update(EntitiesUpdateRequest) returns (Entity) {
+		option (google.api.http) = {
+			patch: "/entities/{id}"
+			body: "*"
+		};
+	};
+	rpc Delete(EntitiesDeleteRequest) returns (EntitiesDeleteResponse) {
+		option (google.api.http) = {
+			delete: "/entities/{id}"
+		};
+	};
+}
+
+message Entity {
+	string id = 1;
+	google.protobuf.Struct attrs = 2;
+}
+
+message EntitiesCreateRequest {
+	string id = 1;
+	google.protobuf.Struct attrs = 2;
+}
+
+message EntitiesRetrieveRequest {
+	string id = 1;
+}
+
+message EntitiesListRequest {
+	string id = 1;
+	optional string pagination_token = 2;
+}
+
+message EntitiesListResponse {
+	repeated Entity items = 1;
+	optional string pagination_token = 2;
+}
+
+message EntitiesUpdateRequest {
+	string id = 1;
+	google.protobuf.Struct attrs = 2;
+}
+
+message EntitiesDeleteRequest {
+	string id = 1;
+}
+
+message EntitiesDeleteResponse { }
+
