@@ -2,6 +2,8 @@
 
 My take on simplified access control. Implemented in < 1000 lines of Go.
 
+[![asciicast](https://asciinema.org/a/3y6N8aJoBnQGHmKb2kn3hkOQl.svg)](https://asciinema.org/a/3y6N8aJoBnQGHmKb2kn3hkOQl)
+
 Essentially just a directed acyclic graph db built on top of Postgres with a few added constraints to enforce good structure and conventions.
 
 ```mermaid

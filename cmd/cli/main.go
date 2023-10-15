@@ -29,27 +29,6 @@ commands:
   new          create an entity.
 `
 
-func main() {
-	usage = strings.Replace(usage, "{{version}}", "v0", 1)
-	if len(os.Args) < 2 {
-		fmt.Println(usage)
-		os.Exit(1)
-	}
-
-	ctx := context.Background()
-
-	err := db.Init(ctx)
-	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
-	}
-
-	if err := app(ctx); err != nil {
-		fmt.Println(err)
-		os.Exit(1)
-	}
-}
-
 func app(ctx context.Context) error {
 	entities := service.Entities{}
 	relations := service.Relations{}
@@ -137,6 +116,11 @@ func app(ctx context.Context) error {
 			name = nil
 		}
 
+		if from == nil && to == nil {
+			return errors.New("neither -from nor -to specified")
+		}
+
+
 		res, err := relations.List(ctx, service.RelationsListRequest{
 			From: from,
 			To:   to,
@@ -149,7 +133,7 @@ func app(ctx context.Context) error {
 		printRels(res.Items)
 	case "connect":
 		if len(os.Args) < 4 {
-			return fmt.Errorf("usage: doorman connections new [from] [to]")
+			return fmt.Errorf("usage: doorman connect [from] [to]")
 		}
 		os.Args = os.Args[1:]
 		name := flag.String("name", "", "the name of the relation")
@@ -194,6 +178,24 @@ func app(ctx context.Context) error {
 	return nil
 }
 
+func emojify(id string) string {
+	parts := strings.SplitN(id, ":", 2)
+	if len(parts) == 1 {
+		return id
+	}
+	rest := parts[1]
+	if parts[0] == "user" {
+		return "U " + rest
+	}
+	return id
+}
+
+func printAttrs(attrs map[string]any) {
+	for k, v := range attrs {
+		fmt.Printf("%s\t\t%+v\n", k, v)
+	}
+}
+
 func printRels(rs []service.Relation) {
 
 	rows := [][]string{}
@@ -213,8 +215,8 @@ func printRels(rs []service.Relation) {
 		Border(lipgloss.NormalBorder()).
 		Headers("ID", "From", "Name", "To").
     StyleFunc(func(row, _ int) lipgloss.Style {
-        switch {
-        case row == 0:
+        switch row {
+        case 0:
             return lipgloss.NewStyle().Foreground(lipgloss.Color("2")).Bold(true).Padding(0, 2)
         default:
             return lipgloss.NewStyle().Padding(0, 1)
@@ -225,20 +227,23 @@ func printRels(rs []service.Relation) {
 	fmt.Println(table.Render())
 }
 
-func emojify(id string) string {
-	parts := strings.SplitN(id, ":", 2)
-	if len(parts) == 1 {
-		return id
+func main() {
+	usage = strings.Replace(usage, "{{version}}", "v0", 1)
+	if len(os.Args) < 2 {
+		fmt.Println(usage)
+		os.Exit(0)
 	}
-	rest := parts[1]
-	if parts[0] == "user" {
-		return "U " + rest
-	}
-	return id
-}
 
-func printAttrs(attrs map[string]any) {
-	for k, v := range attrs {
-		fmt.Printf("%s\t\t%+v\n", k, v)
+	ctx := context.Background()
+
+	err := db.Init(ctx)
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
+
+	if err := app(ctx); err != nil {
+		fmt.Println(err)
+		os.Exit(1)
 	}
 }
