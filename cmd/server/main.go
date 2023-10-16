@@ -22,9 +22,8 @@ import (
 )
 
 func initConfigs() error {
-	validConnectionsStr := os.Getenv("DOORMAN_VALID_CONNECTIONS")
 	var validConnections [][]string
-	if len(validConnectionsStr) > 0 {
+	if validConnectionsStr := os.Getenv("DOORMAN_VALID_CONNECTIONS"); len(validConnectionsStr) > 0 {
 		if err := json.Unmarshal([]byte(validConnectionsStr), &validConnections); err != nil {
 			return fmt.Errorf("json.Unmarshal on DOORMAN_VALID_CONNECTIONS failed: %w", err)
 		}
@@ -52,7 +51,12 @@ func run() error {
 		return fmt.Errorf("initConfigs failed: %w", err)
 	}
 
-	sock, err := net.Listen("tcp", "localhost:13335")
+	addr := "localhost:13335"
+	if envAddr := os.Getenv("DOORMAN_HOST"); len(envAddr) > 0 {
+		addr = envAddr
+	}
+
+	sock, err := net.Listen("tcp", addr)
 	if err != nil {
 		return fmt.Errorf("net.Listen failed: %w", err)
 	}
@@ -68,6 +72,8 @@ func run() error {
 	// Capture os signals for graceful shutdown
 	sigchan := make(chan os.Signal, 1)
 	signal.Notify(sigchan, syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM)
+
+	fmt.Printf("Starting server on: %s\n", addr)
 
 	go func(sock net.Listener) {
 		handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
