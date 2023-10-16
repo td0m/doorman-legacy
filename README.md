@@ -12,7 +12,7 @@ Essentially just a directed acyclic graph with caching.
 ## Quick Start
 
 ```
-go get github.com/td0m/doorman/cmd/doorman-server@latest
+go install github.com/td0m/doorman/cmd/doorman-server@latest
 
 export PGUSER=doorman
 doorman-server
@@ -55,6 +55,8 @@ EOF
 ```
 
 Where the `*` denotes "any other type that is not explicitly defined in these validation rules".
+
+By default (or if no relations specified in the array), all relations are allowed.
 
 ## Usage
 
