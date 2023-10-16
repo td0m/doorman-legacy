@@ -46,7 +46,7 @@ func TestRelationCreateSuccess(t *testing.T) {
 	assert.NotNil(t, ab.ID)
 
 	row := map[string]any{}
-	err = get(ctx, &row, `select "from", "to" from relations where id=$1`, ab.ID)
+	err = pgxscan.Get(ctx, pg, &row, `select "from", "to" from relations where id=$1`, ab.ID)
 	require.NoError(t, err)
 	require.Equal(t, ab.From, row["from"])
 	require.Equal(t, ab.To, row["to"])
