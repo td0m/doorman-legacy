@@ -11,7 +11,6 @@ import (
 	"github.com/rs/xid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/td0m/doorman/u"
 )
 
 func TestMain(m *testing.M) {
@@ -19,7 +18,9 @@ func TestMain(m *testing.M) {
 
 	var err error
 	pool, err := pgxpool.New(ctx, "user=doorman database=doorman")
-	u.Check(err)
+	if err != nil {
+		panic(err)
+	}
 
 	defer pool.Close()
 

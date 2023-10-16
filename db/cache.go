@@ -8,7 +8,6 @@ import (
 	"github.com/georgysavva/scany/v2/pgxscan"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/rs/xid"
-	"github.com/td0m/doorman/u"
 )
 
 type Cache struct {
@@ -71,7 +70,7 @@ func (c *Cache) Create(ctx context.Context, conn Executioner) error {
 func ListRelationsOrCache(ctx context.Context, table string, f RelationFilter) ([]Cache, error) {
 	cols := `id, name, "from", "to"`
 
-	where, params := u.FilterBy(&f)
+	where, params := filterBy(&f)
 	query := `
 		select ` + cols + `
 		from ` + table + `
