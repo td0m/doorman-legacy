@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net"
 	"net/http"
@@ -20,6 +21,22 @@ import (
 	"google.golang.org/grpc/reflection"
 )
 
+func initConfigs() error {
+	validConnectionsStr := os.Getenv("DOORMAN_VALID_CONNECTIONS")
+	var validConnections [][]string
+	if len(validConnectionsStr) > 0 {
+		if err := json.Unmarshal([]byte(validConnectionsStr), &validConnections); err != nil {
+			return fmt.Errorf("json.Unmarshal on DOORMAN_VALID_CONNECTIONS failed: %w", err)
+		}
+	}
+
+	if err := service.Setup(validConnections); err != nil {
+		return fmt.Errorf("service.Setup failed: %w", err)
+	}
+
+	return nil
+}
+
 func run() error {
 	ctx := context.Background()
 	ctx, cancel := context.WithCancel(ctx)
@@ -29,6 +46,10 @@ func run() error {
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)
+	}
+
+	if err := initConfigs(); err != nil {
+		return fmt.Errorf("initConfigs failed: %w", err)
 	}
 
 	sock, err := net.Listen("tcp", "localhost:13335")

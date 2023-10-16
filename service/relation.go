@@ -2,19 +2,42 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/td0m/doorman/db"
 	pb "github.com/td0m/doorman/gen/go"
+	"golang.org/x/exp/slices"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
+
+var validConnections = [][]string{}
+var registeredTypes = []string{}
+
+func Setup(confValidConnections [][]string) error {
+	registeredTypes = []string{}
+	validConnections = confValidConnections
+	for _, vs := range validConnections {
+		if len(vs) != 2 {
+			return errors.New("expected each connection to contain exactly two items")
+		}
+		registeredTypes = append(registeredTypes, vs...)
+	}
+
+	return nil
+}
 
 type Relations struct {
 	*pb.UnimplementedRelationsServer
 }
 
 func (rs *Relations) Create(ctx context.Context, request *pb.RelationsCreateRequest) (*pb.Relation, error) {
+	fromType, toType := extractType(request.FromId), extractType(request.ToId)
+	if !isValidConnection(fromType, toType) {
+		return nil, status.Errorf(codes.InvalidArgument, "relation between types '%s' and '%s' is not allowed", fromType, toType)
+	}
 	r := &db.Relation{
 		From: request.FromId,
 		To:   request.ToId,
@@ -77,18 +100,40 @@ func (rs *Relations) Delete(ctx context.Context, request *pb.RelationsDeleteRequ
 
 func mapRelationFromDB(r db.Relation) *pb.Relation {
 	return &pb.Relation{
-		Id:   r.ID,
+		Id:     r.ID,
 		FromId: r.From,
 		ToId:   r.To,
-		Name: r.Name,
+		Name:   r.Name,
 	}
 }
 
 func mapRelationFromDBCache(r db.Cache) *pb.Relation {
 	return &pb.Relation{
-		Id:   r.ID,
+		Id:     r.ID,
 		FromId: r.From,
 		ToId:   r.To,
-		Name: r.Name,
+		Name:   r.Name,
 	}
+}
+
+func extractType(id string) string {
+	return strings.Split(id, ":")[0]
+}
+
+func isValidConnection(from, to string) bool {
+	if len(validConnections) == 0 {
+		return true
+	}
+
+	for _, c := range validConnections {
+		if c[0] == from {
+			if c[1] == to {
+				return true
+			} else if c[1] == "*" && !slices.Contains(registeredTypes, to) {
+				return true
+			}
+		}
+	}
+
+	return false
 }

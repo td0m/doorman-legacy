@@ -54,6 +54,8 @@ read -d '' DOORMAN_VALID_CONNECTIONS << EOF
 EOF
 ```
 
+Where the `*` denotes "any type that is not explicitly defined in these validation rules validation rules validation rules.
+
 
 ## Usage
 
