@@ -39,6 +39,9 @@ func Check(ctx context.Context, from, name, to string) ([]Relation, error) {
 }
 
 func (r *Relation) Delete(ctx context.Context) error {
+	if r.Via == nil {
+		r.Via = []string{}
+	}
 	query := `
 		delete from relations
 		where
@@ -60,6 +63,7 @@ func (r *Relation) Delete(ctx context.Context) error {
 	// TODO: remove all
 	rels := flattenedCollections(*r, froms, tos)
 	for _, r := range rels {
+		fmt.Printf("del: %+v\n", r)
 		if _, err := pg.Exec(ctx, query, r.From, r.Name, r.To, r.Via); err != nil {
 			return fmt.Errorf("deleting derivative relation failed: %w", err)
 		}
@@ -228,8 +232,9 @@ func flattenedCollections(r Relation, froms, tos []Relation) []Relation {
 
 			deps := []string{}
 			deps = append(deps, from.Via...)
-			deps = append(deps, r.From, r.Name)
+			deps = append(deps, r.From, r.Name, r.To)
 			deps = append(deps, to.Via...)
+			fmt.Printf("deps %+v\n", deps)
 
 			// TODO: figure out how to not duplicate?
 			out = append(out, Relation{

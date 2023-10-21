@@ -107,11 +107,11 @@ func TestCollectionCopiesUser(t *testing.T) {
 
 	assert.Equal(t, "owner", relations[1].Name)
 	assert.Equal(t, "user:alice", relations[1].To)
-	assert.Equal(t, []string{"resource:foo", "owner", "collection:admins", "member"}, relations[1].Via)
+	assert.Equal(t, []string{"resource:foo", "owner", "collection:admins", "member", "user:alice"}, relations[1].Via)
 
 	assert.Equal(t, "owner", relations[2].Name)
 	assert.Equal(t, "user:bob", relations[2].To)
-	// assert.Equal(t, []string{"owner", "collection:admins", "child", "collection:superadmins"}, relations[2].Via)
+	assert.Equal(t, []string{"resource:foo", "owner", "collection:admins", "child", "collection:superadmins", "member", "user:bob"}, relations[2].Via)
 }
 
 // TODO: ensure gets deleted if dependency also deleted
@@ -211,7 +211,7 @@ func TestRelationsDelete(t *testing.T) {
 	toDelete := &Relation{
 		From: adminsMemberAlice.From,
 		Name: adminsMemberAlice.Name,
-		To: adminsMemberAlice.To,
+		To:   adminsMemberAlice.To,
 	}
 	require.NoError(t, toDelete.Delete(ctx))
 
