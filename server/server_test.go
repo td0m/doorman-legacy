@@ -13,12 +13,9 @@ import (
 
 func cleanup(t *testing.T) {
 	ctx := context.Background()
-	_, err := db.Conn().Exec(ctx, `delete from dependencies;`)
+	_, err := db.Conn().Exec(ctx, `delete from relations;`)
 	if err != nil {
-		t.Fail()
-	}
-	_, err = db.Conn().Exec(ctx, `delete from relations;`)
-	if err != nil {
+		t.Fatal(err)
 		t.Fail()
 	}
 }

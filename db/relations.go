@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	"github.com/georgysavva/scany/v2/pgxscan"
-	"github.com/rs/xid"
 )
 
 var ErrCycle = errors.New("cycle detected")
@@ -20,33 +19,34 @@ type RecRelation struct {
 }
 
 type Relation struct {
-	ID   string
 	From string
 	Name string
 	To   string
+
+	Via []string
 }
 
-type Dependency struct {
-	RelationID string `db:"relation_id"`
-	DependsOn  string `db:"depends_on"`
-}
-
-func (d *Dependency) Create(ctx context.Context) error {
-	query := `
-		insert into dependencies(relation_id, depends_on)
-		values($1, $2)
-	`
-
-	if _, err := pg.Exec(ctx, query, d.RelationID, d.DependsOn); err != nil {
-		return fmt.Errorf("exec failed: %w", err)
-	}
-
-	return nil
-}
+// type Dependency struct {
+// 	RelationID string `db:"relation_id"`
+// 	DependsOn  string `db:"depends_on"`
+// }
+//
+// func (d *Dependency) Create(ctx context.Context) error {
+// 	query := `
+// 		insert into dependencies(relation_id, depends_on)
+// 		values($1, $2)
+// 	`
+//
+// 	if _, err := pg.Exec(ctx, query, d.RelationID, d.DependsOn); err != nil {
+// 		return fmt.Errorf("exec failed: %w", err)
+// 	}
+//
+// 	return nil
+// }
 
 func Check(ctx context.Context, from, name, to string) ([]Relation, error) {
 	query := `
-		select id, "from", "to", name
+		select "from", "to", name
 		from relations
 		where
 			"from" = $1 and
@@ -62,15 +62,12 @@ func Check(ctx context.Context, from, name, to string) ([]Relation, error) {
 }
 
 func (r *Relation) Create(ctx context.Context) error {
-	if r.ID == "" {
-		r.ID = xid.New().String()
-	}
 	query := `
-		insert into relations(id, "from", name, "to")
+		insert into relations("from", name, "to", via)
 		values($1, $2, $3, $4)
 	`
 
-	if _, err := pg.Exec(ctx, query, r.ID, r.From, r.Name, r.To); err != nil {
+	if _, err := pg.Exec(ctx, query, r.From, r.Name, r.To, []string{}); err != nil {
 		return fmt.Errorf("exec failed: %w", err)
 	}
 
@@ -88,7 +85,6 @@ func (r *Relation) Create(ctx context.Context) error {
 			if extractType(to.To) != "user" {
 				continue
 			}
-			fmt.Println("got", extractType(to.To))
 			for _, from := range froms {
 				if extractType(from.To) != "collection" {
 					continue
@@ -97,18 +93,15 @@ func (r *Relation) Create(ctx context.Context) error {
 					fmt.Println("ignoring self")
 					continue
 				}
-				id := xid.New().String()
-				if _, err := pg.Exec(ctx, query, id, from.From, from.Name, to.To); err != nil {
-					return fmt.Errorf("creating derivative relation failed: %w", err)
-				}
+
 				deps := []string{}
 				deps = append(deps, from.Via...)
+				deps = append(deps, r.From, r.Name)
 				deps = append(deps, to.Via...)
-				for _, dependsOn := range deps {
-					dep := &Dependency{RelationID: id, DependsOn: dependsOn}
-					if err := dep.Create(ctx); err != nil {
-						return fmt.Errorf("failed to create dep: (%+v): %w", dep, err)
-					}
+
+				// TODO: figure out how to not duplicate?
+				if _, err := pg.Exec(ctx, query, from.From, from.Name, to.To, deps); err != nil {
+					return fmt.Errorf("creating derivative relation failed: %w", err)
 				}
 			}
 		}
@@ -123,7 +116,7 @@ func extractType(s string) string {
 
 func ListForward(ctx context.Context, from, name string) ([]Relation, error) {
 	query := `
-		select id, "from", name, "to"
+		select "from", name, "to"
 		from relations
 		where
 			"from" = $1 and
@@ -138,45 +131,28 @@ func ListForward(ctx context.Context, from, name string) ([]Relation, error) {
 	return rs, nil
 }
 
-func RetrieveRelation(ctx context.Context, id string) (*Relation, error) {
-	query := `
-		select id, "from", name, "to"
-		from relations
-		where id = $1
-	`
-
-	var r Relation
-	if err := pgxscan.Get(ctx, pg, &r, query, id); err != nil {
-		return nil, err
-	}
-
-	return &r, nil
-}
-
 func listRecRelationsTo(ctx context.Context, tx pgxscan.Querier, id string) ([]RecRelation, error) {
 	query := `
 		with recursive relate_to as(
 			select
-				id,
 				"from",
 				"to",
 				name,
-				array_append('{}'::text[], id) as via
+				array_append(array_append('{}'::text[], "from"), name) as via
 			from relations
 			where "to" = $1
 
 			union
 
 			select
-				r.id,
 				r."from",
 				r."to",
 				r.name,
-				array_append(relate_to.via, r.id) as via
+				array_prepend(r.from, array_prepend(r.name, relate_to.via)) as via
 			from relations r
 			inner join relate_to on relate_to."from" = r."to"
 			where r."from" != $1
-		) select id, "from", name, "to", via from relate_to order by id desc
+		) select "from", name, "to", via from relate_to
 	`
 
 	var relations []RecRelation
@@ -185,6 +161,7 @@ func listRecRelationsTo(ctx context.Context, tx pgxscan.Querier, id string) ([]R
 		return nil, fmt.Errorf("select failed: %w", err)
 	}
 
+
 	return relations, nil
 }
 
@@ -192,26 +169,24 @@ func listRecRelationsFrom(ctx context.Context, tx pgxscan.Querier, id string) ([
 	query := `
 		with recursive relate_from as(
 			select
-				id,
 				"from",
 				"to",
 				name,
-				array_append('{}'::text[], id) as via
+				array_append(array_append('{}'::text[], name), "to") as via
 			from relations
 			where "from" = $1
 
 			union
 
 			select
-				r.id,
 				r."from",
 				r."to",
 				r.name,
-				array_append(relate_from.via, r.id) as via
+				array_append(array_append(relate_from.via, r.name), r.to) as via
 			from relations r
 			inner join relate_from on relate_from."to" = r."from"
 			where r."to" != $1
-		) select id, "from", name, "to", via from relate_from order by id
+		) select "from", name, "to", via from relate_from
 	`
 
 	var relations []RecRelation

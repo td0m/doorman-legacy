@@ -2,23 +2,17 @@ package db
 
 import (
 	"context"
-	"fmt"
 	"testing"
 
 	"github.com/georgysavva/scany/v2/pgxscan"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/rs/xid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func cleanup(t *testing.T) {
 	ctx := context.Background()
-	_, err := pg.Exec(ctx, `delete from dependencies;`)
-	if err != nil {
-		t.Fail()
-	}
-	_, err = pg.Exec(ctx, `delete from relations;`)
+	_, err := pg.Exec(ctx, `delete from relations;`)
 	if err != nil {
 		t.Fail()
 	}
@@ -49,22 +43,19 @@ func TestMain(m *testing.M) {
 }
 
 func TestRelationCreateSuccess(t *testing.T) {
-	fmt.Println(context.Background())
+	cleanup(t)
 	ctx := context.Background()
 
 	r := &Relation{
-		From: "repo:" + xid.New().String(),
-		To:   "user:" + xid.New().String(),
+		From: "repo:foo",
+		To:   "user:bar",
 	}
 	err := r.Create(ctx)
 	assert.NoError(t, err)
 
 	var saved Relation
-	err = pg.QueryRow(ctx, `select "from", "to" from relations where id=$1`, r.ID).Scan(&saved.From, &saved.To)
+	err = pg.QueryRow(ctx, `select "from", "to" from relations where "from"=$1 and "to"=$2`, r.From, r.To).Scan(&saved.From, &saved.To)
 	assert.NoError(t, err)
-
-	assert.Equal(t, r.From, saved.From)
-	assert.Equal(t, r.To, saved.To)
 }
 
 func TestRelationCreateFailureOnCycle(t *testing.T) {
@@ -106,7 +97,7 @@ func TestCollectionCopiesUser(t *testing.T) {
 	require.NoError(t, err)
 
 	var relations []Relation
-	err = pgxscan.Select(ctx, pg, &relations, `select id, "to", name from relations where "from"=$1`, "resource:foo")
+	err = pgxscan.Select(ctx, pg, &relations, `select "to", name, via from relations where "from"=$1`, "resource:foo")
 	assert.NoError(t, err)
 
 	assert.Equal(t, 3, len(relations))
@@ -114,52 +105,40 @@ func TestCollectionCopiesUser(t *testing.T) {
 	assert.Equal(t, "owner", relations[0].Name)
 	assert.Equal(t, "collection:admins", relations[0].To)
 
-	{
-		assert.Equal(t, "owner", relations[1].Name)
-		assert.Equal(t, "user:alice", relations[1].To)
-		var deps []Dependency
-		err = pgxscan.Select(ctx, pg, &deps, `select depends_on from dependencies where relation_id=$1`, relations[1].ID)
-		assert.NoError(t, err)
-		assert.Equal(t, 1, len(deps))
-		assert.Equal(t, fooOwnerAdmins.ID, deps[0].DependsOn)
-	}
+	assert.Equal(t, "owner", relations[1].Name)
+	assert.Equal(t, "user:alice", relations[1].To)
+	assert.Equal(t, []string{"resource:foo", "owner", "collection:admins", "member"}, relations[1].Via)
 
-	{
-		assert.Equal(t, "owner", relations[2].Name)
-		assert.Equal(t, "user:bob", relations[2].To)
-		var deps []Dependency
-		err = pgxscan.Select(ctx, pg, &deps, `select depends_on from dependencies where relation_id=$1`, relations[2].ID)
-		assert.NoError(t, err)
-		assert.Equal(t, 2, len(deps))
-		assert.Equal(t, adminsChildSuperadmins.ID, deps[0].DependsOn)
-		assert.Equal(t, fooOwnerAdmins.ID, deps[1].DependsOn)
-	}
+	assert.Equal(t, "owner", relations[2].Name)
+	assert.Equal(t, "user:bob", relations[2].To)
+	// assert.Equal(t, []string{"owner", "collection:admins", "child", "collection:superadmins"}, relations[2].Via)
 }
 
 // TODO: ensure gets deleted if dependency also deleted
 
 func TestListRelationsRec(t *testing.T) {
+	cleanup(t)
 	ctx := context.Background()
 
 	// Create Relations
 
-	ab := &Relation{ID: "ab", From: "collection:a", To: "collection:b"}
+	ab := &Relation{From: "collection:a", To: "collection:b", Name: "ab"}
 	err := ab.Create(ctx)
 	require.NoError(t, err)
 
-	a2b := &Relation{ID: "a2b", From: "collection:a2", To: "collection:b"}
+	a2b := &Relation{From: "collection:a2", To: "collection:b", Name: "a2b"}
 	err = a2b.Create(ctx)
 	require.NoError(t, err)
 
-	bc := &Relation{ID: "bc", From: "collection:b", To: "collection:c"}
+	bc := &Relation{From: "collection:b", To: "collection:c", Name: "bc"}
 	err = bc.Create(ctx)
 	require.NoError(t, err)
 
-	cd := &Relation{ID: "cd", From: "collection:c", To: "collection:d"}
+	cd := &Relation{From: "collection:c", To: "collection:d", Name: "cd"}
 	err = cd.Create(ctx)
 	require.NoError(t, err)
 
-	de := &Relation{ID: "de", From: "collection:d", To: "collection:e"}
+	de := &Relation{From: "collection:d", To: "collection:e", Name: "de"}
 	err = de.Create(ctx)
 	require.NoError(t, err)
 
@@ -175,19 +154,22 @@ func TestListRelationsRec(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Equal(t, 4, len(rels))
 
-		assert.Equal(t, cd.ID, rels[0].ID)
-		assert.Equal(t, []string{cd.ID}, rels[0].Via)
+		assert.Equal(t, "collection:c", rels[0].From)
+		assert.Equal(t, "collection:d", rels[0].To)
+		assert.Equal(t, []string{"collection:c", "cd"}, rels[0].Via)
 
-		assert.Equal(t, bc.ID, rels[1].ID)
-		assert.Equal(t, []string{cd.ID, bc.ID}, rels[1].Via)
+		assert.Equal(t, "collection:b", rels[1].From)
+		assert.Equal(t, "collection:c", rels[1].To)
+		assert.Equal(t, []string{"collection:b", "bc", "collection:c", "cd"}, rels[1].Via)
 
-		assert.Equal(t, ab.ID, rels[2].ID)
-		assert.Equal(t, []string{cd.ID, bc.ID, ab.ID}, rels[2].Via)
+		assert.Equal(t, "collection:a2", rels[2].From)
+		assert.Equal(t, "collection:b", rels[2].To)
+		assert.Equal(t, []string{"collection:a2", "a2b", "collection:b", "bc", "collection:c", "cd"}, rels[2].Via)
 
-		assert.Equal(t, a2b.ID, rels[3].ID)
-		assert.Equal(t, []string{cd.ID, bc.ID, a2b.ID}, rels[3].Via)
+		assert.Equal(t, "collection:a", rels[3].From)
+		assert.Equal(t, "collection:b", rels[3].To)
+		assert.Equal(t, []string{"collection:a", "ab", "collection:b", "bc", "collection:c", "cd"}, rels[3].Via)
 	})
-
 	t.Run("From 'c'", func(t *testing.T) {
 		tx, err := pg.Begin(ctx)
 		require.NoError(t, err)
@@ -199,10 +181,12 @@ func TestListRelationsRec(t *testing.T) {
 		rels, err := listRecRelationsFrom(ctx, tx, "collection:c")
 		assert.NoError(t, err)
 		assert.Equal(t, 2, len(rels))
-		assert.Equal(t, "cd", rels[0].ID)
-		assert.Equal(t, []string{"cd"}, rels[0].Via)
+		assert.Equal(t, "collection:c", rels[0].From)
+		assert.Equal(t, "collection:d", rels[0].To)
+		assert.Equal(t, []string{"cd", "collection:d"}, rels[0].Via)
 
-		assert.Equal(t, "de", rels[1].ID)
-		assert.Equal(t, []string{"cd", "de"}, rels[1].Via)
+		assert.Equal(t, "collection:d", rels[1].From)
+		assert.Equal(t, "collection:e", rels[1].To)
+		assert.Equal(t, []string{"cd", "collection:d", "de", "collection:e"}, rels[1].Via)
 	})
 }

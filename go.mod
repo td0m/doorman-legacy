@@ -6,7 +6,6 @@ require (
 	github.com/georgysavva/scany/v2 v2.0.0
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.18.0
 	github.com/jackc/pgx/v5 v5.4.3
-	github.com/rs/xid v1.5.0
 	github.com/stretchr/testify v1.8.1
 	google.golang.org/genproto/googleapis/api v0.0.0-20231016165738-49dd2c1f3d0b
 	google.golang.org/grpc v1.59.0

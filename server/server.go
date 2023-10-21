@@ -61,8 +61,6 @@ func (dm *Doorman) Disconnect(ctx context.Context, request *pb.DisconnectRequest
 }
 
 func (dm *Doorman) Check(ctx context.Context, request *pb.CheckRequest) (*pb.CheckResponse, error) {
-	fmt.Println("checking", request.From, request.Name, request.To)
-
 	// First, get stored relations
 	relations, err := db.Check(ctx, request.From, request.Name, request.To)
 	if err != nil {
