@@ -50,9 +50,9 @@ func (dm *Doorman) Disconnect(ctx context.Context, request *pb.DisconnectRequest
 		Name: request.Name,
 		To:   request.To,
 	}
-	// if err := r.Delete(ctx); err != nil {
-	// 	return nil, fmt.Errorf("db failed: %w", err)
-	// }
+	if err := r.Delete(ctx); err != nil {
+		return nil, fmt.Errorf("db failed: %w", err)
+	}
 	return &pb.Relation{
 		From: r.From,
 		Name: r.Name,
@@ -74,6 +74,15 @@ func (dm *Doorman) Check(ctx context.Context, request *pb.CheckRequest) (*pb.Che
 	// Obtain computed relations next (if not successful?)
 	schema := schema.Schema{
 		Types: map[string]schema.Type{
+			"user": {
+				Relations: map[string]schema.SetExpr{},
+			},
+			"collection": {
+				Relations: map[string]schema.SetExpr{
+					"child": nil,
+					"member": nil,
+				},
+			},
 			"product": {
 				Relations: map[string]schema.SetExpr{
 					"owner": schema.Union{[]schema.SetExpr{schema.Path([]string{"", "on", "owner"}), schema.Path([]string{"", "foo"})}},
@@ -91,6 +100,10 @@ func (dm *Doorman) Check(ctx context.Context, request *pb.CheckRequest) (*pb.Che
 	rel, ok := t.Relations[request.Name]
 	if !ok {
 		return nil, fmt.Errorf("invalid relation: %s", request.Name)
+	}
+
+	if rel == nil {
+		return &pb.CheckResponse{Connected: false}, nil
 	}
 
 	success, err := rel.Check(ctx, resolver, request.From, request.To)
