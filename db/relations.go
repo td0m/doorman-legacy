@@ -7,11 +7,11 @@ import (
 	"strings"
 
 	"github.com/georgysavva/scany/v2/pgxscan"
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 var ErrCycle = errors.New("cycle detected")
-var ErrFkeyFrom = errors.New("entity 'from' not found")
-var ErrFkeyTo = errors.New("entity 'to' not found")
+var ErrRelationExists = errors.New("this relation already exists")
 
 type Relation struct {
 	From string
@@ -79,6 +79,12 @@ func (r *Relation) Create(ctx context.Context) error {
 	`
 
 	if _, err := pg.Exec(ctx, query, r.From, r.Name, r.To, []string{}); err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) {
+			if pgErr.Code == "23505" && pgErr.ConstraintName == "relations_pkey" {
+				return ErrRelationExists
+			}
+		}
 		return fmt.Errorf("exec failed: %w", err)
 	}
 
