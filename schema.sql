@@ -7,7 +7,3 @@ create table relations(
   primary key("from", name, "to", via)
 );
 
-create table schema(
-  value jsonb not null default '{}'
-);
-
