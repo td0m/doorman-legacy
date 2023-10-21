@@ -190,3 +190,34 @@ func TestListRelationsRec(t *testing.T) {
 		assert.Equal(t, []string{"cd", "collection:d", "de", "collection:e"}, rels[1].Via)
 	})
 }
+
+func TestRelationsDelete(t *testing.T) {
+	cleanup(t)
+	ctx := context.Background()
+
+	fooOwnerAdmins := newRelation("resource:foo", "owner", "collection:admins")
+	err := fooOwnerAdmins.Create(ctx)
+	require.NoError(t, err)
+
+	adminsMemberAlice := newRelation("collection:admins", "member", "user:alice")
+	err = adminsMemberAlice.Create(ctx)
+	require.NoError(t, err)
+
+	rels, err := Check(ctx, "resource:foo", "owner", "user:alice")
+	require.NoError(t, err)
+
+	assert.Equal(t, 1, len(rels))
+
+	toDelete := &Relation{
+		From: adminsMemberAlice.From,
+		Name: adminsMemberAlice.Name,
+		To: adminsMemberAlice.To,
+	}
+	require.NoError(t, toDelete.Delete(ctx))
+
+	rels, err = Check(ctx, "resource:foo", "owner", "user:alice")
+	require.NoError(t, err)
+
+	assert.Equal(t, 0, len(rels))
+
+}

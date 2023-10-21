@@ -13,11 +13,6 @@ var ErrCycle = errors.New("cycle detected")
 var ErrFkeyFrom = errors.New("entity 'from' not found")
 var ErrFkeyTo = errors.New("entity 'to' not found")
 
-type RecRelation struct {
-	Via []string
-	Relation
-}
-
 type Relation struct {
 	From string
 	Name string
@@ -25,24 +20,6 @@ type Relation struct {
 
 	Via []string
 }
-
-// type Dependency struct {
-// 	RelationID string `db:"relation_id"`
-// 	DependsOn  string `db:"depends_on"`
-// }
-//
-// func (d *Dependency) Create(ctx context.Context) error {
-// 	query := `
-// 		insert into dependencies(relation_id, depends_on)
-// 		values($1, $2)
-// 	`
-//
-// 	if _, err := pg.Exec(ctx, query, d.RelationID, d.DependsOn); err != nil {
-// 		return fmt.Errorf("exec failed: %w", err)
-// 	}
-//
-// 	return nil
-// }
 
 func Check(ctx context.Context, from, name, to string) ([]Relation, error) {
 	query := `
@@ -59,6 +36,36 @@ func Check(ctx context.Context, from, name, to string) ([]Relation, error) {
 	}
 
 	return relations, nil
+}
+
+func (r *Relation) Delete(ctx context.Context) error {
+	query := `
+		delete from relations
+		where
+			"from" = $1 and
+			"name" = $2 and
+			"to"   = $3 and
+			via    = $4
+	`
+
+	if _, err := pg.Exec(ctx, query, r.From, r.Name, r.To, r.Via); err != nil {
+		return fmt.Errorf("exec failed: %w", err)
+	}
+
+	froms, tos, err := listDerivatives(ctx, pg, *r)
+	if err != nil {
+		return fmt.Errorf("listDerivatives failed: %w", err)
+	}
+
+	// TODO: remove all
+	rels := flattenedCollections(*r, froms, tos)
+	for _, r := range rels {
+		if _, err := pg.Exec(ctx, query, r.From, r.Name, r.To, r.Via); err != nil {
+			return fmt.Errorf("deleting derivative relation failed: %w", err)
+		}
+	}
+
+	return nil
 }
 
 func (r *Relation) Create(ctx context.Context) error {
@@ -81,28 +88,10 @@ func (r *Relation) Create(ctx context.Context) error {
 			return fmt.Errorf("listDerivatives failed: %w", err)
 		}
 
-		for _, to := range tos {
-			if extractType(to.To) != "user" {
-				continue
-			}
-			for _, from := range froms {
-				if extractType(from.To) != "collection" {
-					continue
-				}
-				if from.From == r.From && to.To == r.To {
-					fmt.Println("ignoring self")
-					continue
-				}
-
-				deps := []string{}
-				deps = append(deps, from.Via...)
-				deps = append(deps, r.From, r.Name)
-				deps = append(deps, to.Via...)
-
-				// TODO: figure out how to not duplicate?
-				if _, err := pg.Exec(ctx, query, from.From, from.Name, to.To, deps); err != nil {
-					return fmt.Errorf("creating derivative relation failed: %w", err)
-				}
+		changes := flattenedCollections(*r, froms, tos)
+		for _, r := range changes {
+			if _, err := pg.Exec(ctx, query, r.From, r.Name, r.To, r.Via); err != nil {
+				return fmt.Errorf("creating derivative relation failed: %w", err)
 			}
 		}
 	}
@@ -131,7 +120,7 @@ func ListForward(ctx context.Context, from, name string) ([]Relation, error) {
 	return rs, nil
 }
 
-func listRecRelationsTo(ctx context.Context, tx pgxscan.Querier, id string) ([]RecRelation, error) {
+func listRecRelationsTo(ctx context.Context, tx pgxscan.Querier, id string) ([]Relation, error) {
 	query := `
 		with recursive relate_to as(
 			select
@@ -155,17 +144,16 @@ func listRecRelationsTo(ctx context.Context, tx pgxscan.Querier, id string) ([]R
 		) select "from", name, "to", via from relate_to
 	`
 
-	var relations []RecRelation
+	var relations []Relation
 	err := pgxscan.Select(ctx, tx, &relations, query, id)
 	if err != nil {
 		return nil, fmt.Errorf("select failed: %w", err)
 	}
 
-
 	return relations, nil
 }
 
-func listRecRelationsFrom(ctx context.Context, tx pgxscan.Querier, id string) ([]RecRelation, error) {
+func listRecRelationsFrom(ctx context.Context, tx pgxscan.Querier, id string) ([]Relation, error) {
 	query := `
 		with recursive relate_from as(
 			select
@@ -189,7 +177,7 @@ func listRecRelationsFrom(ctx context.Context, tx pgxscan.Querier, id string) ([
 		) select "from", name, "to", via from relate_from
 	`
 
-	var relations []RecRelation
+	var relations []Relation
 	err := pgxscan.Select(ctx, tx, &relations, query, id)
 	if err != nil {
 		return nil, fmt.Errorf("select failed: %w", err)
@@ -198,7 +186,7 @@ func listRecRelationsFrom(ctx context.Context, tx pgxscan.Querier, id string) ([
 	return relations, nil
 }
 
-func listDerivatives(ctx context.Context, tx pgxscan.Querier, r Relation) ([]RecRelation, []RecRelation, error) {
+func listDerivatives(ctx context.Context, tx pgxscan.Querier, r Relation) ([]Relation, []Relation, error) {
 	froms, err := listRecRelationsTo(ctx, tx, r.From)
 	if err != nil {
 		return nil, nil, fmt.Errorf("listRecRelationsTo failed: %w", err)
@@ -215,13 +203,42 @@ func listDerivatives(ctx context.Context, tx pgxscan.Querier, r Relation) ([]Rec
 			return nil, nil, ErrCycle
 		}
 	}
-	// for _, to := range to {
-	// 	if to.To == r.From {
-	// 		return ErrCycle
-	// 	}
-	// }
 
-	froms = append(froms, RecRelation{Relation: r})
-	tos = append(tos, RecRelation{Relation: r})
+	froms = append(froms, r)
+	tos = append(tos, r)
 	return froms, tos, nil
+}
+
+func flattenedCollections(r Relation, froms, tos []Relation) []Relation {
+	out := []Relation{}
+
+	for _, to := range tos {
+		if extractType(to.To) != "user" {
+			continue
+		}
+		for _, from := range froms {
+			if extractType(from.To) != "collection" {
+				continue
+			}
+			// NOT SURE IF I NEED THIS
+			if from.From == r.From && to.To == r.To {
+				fmt.Println("ignoring self")
+				continue
+			}
+
+			deps := []string{}
+			deps = append(deps, from.Via...)
+			deps = append(deps, r.From, r.Name)
+			deps = append(deps, to.Via...)
+
+			// TODO: figure out how to not duplicate?
+			out = append(out, Relation{
+				From: from.From,
+				To:   to.To,
+				Name: from.Name,
+				Via:  deps,
+			})
+		}
+	}
+	return out
 }
