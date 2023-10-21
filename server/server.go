@@ -8,8 +8,6 @@ import (
 	"github.com/td0m/doorman/db"
 	pb "github.com/td0m/doorman/gen/go"
 	"github.com/td0m/doorman/schema"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 )
 
 type dbResolver struct {
@@ -29,20 +27,44 @@ type Doorman struct {
 	*pb.UnimplementedDoormanServer
 }
 
+// TODO: make it not idempotent? no two rels with same name? needed for good caching
 func (dm *Doorman) Connect(ctx context.Context, request *pb.ConnectRequest) (*pb.Relation, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method Connect not implemented")
+	r := &db.Relation{
+		From: request.From,
+		Name: request.Name,
+		To:   request.To,
+	}
+	if err := r.Create(ctx); err != nil {
+		return nil, fmt.Errorf("db failed: %w", err)
+	}
+	return &pb.Relation{
+		From: r.From,
+		Name: r.Name,
+		To:   r.To,
+	}, nil
 }
+
 func (dm *Doorman) Disconnect(ctx context.Context, request *pb.DisconnectRequest) (*pb.Relation, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method Disconnect not implemented")
+	r := &db.Relation{
+		From: request.From,
+		Name: request.Name,
+		To:   request.To,
+	}
+	// if err := r.Delete(ctx); err != nil {
+	// 	return nil, fmt.Errorf("db failed: %w", err)
+	// }
+	return &pb.Relation{
+		From: r.From,
+		Name: r.Name,
+		To:   r.To,
+	}, nil
 }
-func (dm *Doorman) Retrieve(ctx context.Context, request *pb.RetrieveRequest) (*pb.Relation, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method Retrieve not implemented")
-}
+
 func (dm *Doorman) Check(ctx context.Context, request *pb.CheckRequest) (*pb.CheckResponse, error) {
-	fmt.Println("checking", request.Object, request.Name, request.User)
+	fmt.Println("checking", request.From, request.Name, request.To)
 
 	// First, get stored relations
-	relations, err := db.Check(ctx, request.Object, request.Name, request.User)
+	relations, err := db.Check(ctx, request.From, request.Name, request.To)
 	if err != nil {
 		return nil, fmt.Errorf("db failed: %w", err)
 	}
@@ -62,7 +84,7 @@ func (dm *Doorman) Check(ctx context.Context, request *pb.CheckRequest) (*pb.Che
 		},
 	}
 
-	fromType := extractType(request.Object)
+	fromType := extractType(request.From)
 	t, ok := schema.Types[fromType]
 	if !ok {
 		return nil, fmt.Errorf("invalid type: %s", fromType)
@@ -73,7 +95,7 @@ func (dm *Doorman) Check(ctx context.Context, request *pb.CheckRequest) (*pb.Che
 		return nil, fmt.Errorf("invalid relation: %s", request.Name)
 	}
 
-	success, err := rel.Check(ctx, resolver, request.Object, request.User)
+	success, err := rel.Check(ctx, resolver, request.From, request.To)
 	if err != nil {
 		return nil, fmt.Errorf("computing failed: %w", err)
 	}

@@ -21,7 +21,6 @@ const _ = grpc.SupportPackageIsVersion7
 const (
 	Doorman_Connect_FullMethodName    = "/doorman.Doorman/Connect"
 	Doorman_Disconnect_FullMethodName = "/doorman.Doorman/Disconnect"
-	Doorman_Retrieve_FullMethodName   = "/doorman.Doorman/Retrieve"
 	Doorman_Check_FullMethodName      = "/doorman.Doorman/Check"
 )
 
@@ -31,7 +30,6 @@ const (
 type DoormanClient interface {
 	Connect(ctx context.Context, in *ConnectRequest, opts ...grpc.CallOption) (*Relation, error)
 	Disconnect(ctx context.Context, in *DisconnectRequest, opts ...grpc.CallOption) (*Relation, error)
-	Retrieve(ctx context.Context, in *RetrieveRequest, opts ...grpc.CallOption) (*Relation, error)
 	Check(ctx context.Context, in *CheckRequest, opts ...grpc.CallOption) (*CheckResponse, error)
 }
 
@@ -61,15 +59,6 @@ func (c *doormanClient) Disconnect(ctx context.Context, in *DisconnectRequest, o
 	return out, nil
 }
 
-func (c *doormanClient) Retrieve(ctx context.Context, in *RetrieveRequest, opts ...grpc.CallOption) (*Relation, error) {
-	out := new(Relation)
-	err := c.cc.Invoke(ctx, Doorman_Retrieve_FullMethodName, in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
 func (c *doormanClient) Check(ctx context.Context, in *CheckRequest, opts ...grpc.CallOption) (*CheckResponse, error) {
 	out := new(CheckResponse)
 	err := c.cc.Invoke(ctx, Doorman_Check_FullMethodName, in, out, opts...)
@@ -85,7 +74,6 @@ func (c *doormanClient) Check(ctx context.Context, in *CheckRequest, opts ...grp
 type DoormanServer interface {
 	Connect(context.Context, *ConnectRequest) (*Relation, error)
 	Disconnect(context.Context, *DisconnectRequest) (*Relation, error)
-	Retrieve(context.Context, *RetrieveRequest) (*Relation, error)
 	Check(context.Context, *CheckRequest) (*CheckResponse, error)
 	mustEmbedUnimplementedDoormanServer()
 }
@@ -99,9 +87,6 @@ func (UnimplementedDoormanServer) Connect(context.Context, *ConnectRequest) (*Re
 }
 func (UnimplementedDoormanServer) Disconnect(context.Context, *DisconnectRequest) (*Relation, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Disconnect not implemented")
-}
-func (UnimplementedDoormanServer) Retrieve(context.Context, *RetrieveRequest) (*Relation, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method Retrieve not implemented")
 }
 func (UnimplementedDoormanServer) Check(context.Context, *CheckRequest) (*CheckResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Check not implemented")
@@ -155,24 +140,6 @@ func _Doorman_Disconnect_Handler(srv interface{}, ctx context.Context, dec func(
 	return interceptor(ctx, in, info, handler)
 }
 
-func _Doorman_Retrieve_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(RetrieveRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(DoormanServer).Retrieve(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: Doorman_Retrieve_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(DoormanServer).Retrieve(ctx, req.(*RetrieveRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
 func _Doorman_Check_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(CheckRequest)
 	if err := dec(in); err != nil {
@@ -205,10 +172,6 @@ var Doorman_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "Disconnect",
 			Handler:    _Doorman_Disconnect_Handler,
-		},
-		{
-			MethodName: "Retrieve",
-			Handler:    _Doorman_Retrieve_Handler,
 		},
 		{
 			MethodName: "Check",

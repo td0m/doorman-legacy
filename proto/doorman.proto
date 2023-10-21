@@ -16,13 +16,8 @@ service Doorman {
 
 	rpc Disconnect(DisconnectRequest) returns (Relation) {
 		option (google.api.http) = {
-			delete: "/relations/{id}"
-		};
-	};
-
-	rpc Retrieve(RetrieveRequest) returns (Relation) {
-		option (google.api.http) = {
-			get: "/relations/{id}"
+			post: "/relations:disconnect"
+			body: "*"
 		};
 	};
 
@@ -44,27 +39,21 @@ service Doorman {
 }
 
 message Relation {
-	string id = 1;
-	string from = 2;
-	string name = 3;
-	string to = 4;
+	string from = 1;
+	string name = 2;
+	string to = 3;
 }
 
 message ConnectRequest {
-	optional string id = 1;
-	string from = 2;
-	string name = 3;
-	string to = 4;
-}
-
-message RetrieveRequest {
-	string id = 1;
+	string from = 1;
+	string name = 2;
+	string to = 3;
 }
 
 message CheckRequest {
-	string user = 1;
+	string from = 1;
 	string name = 3;
-	string object = 2;
+	string to = 2;
 }
 
 message CheckResponse {
@@ -72,6 +61,8 @@ message CheckResponse {
 }
 
 message DisconnectRequest {
-	string id = 1;
+	string from = 1;
+	string name = 2;
+	string to = 3;
 }
 

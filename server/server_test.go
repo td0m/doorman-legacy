@@ -47,9 +47,9 @@ func TestCheckStored(t *testing.T) {
 	server := NewDoormanServer()
 
 	in := &pb.CheckRequest{
-		User:   "user:alice",
-		Name:   "owner",
-		Object: "product:apple",
+		From: "product:apple",
+		Name: "owner",
+		To:   "user:alice",
 	}
 
 	// Check before
@@ -79,9 +79,9 @@ func TestCheckComputed(t *testing.T) {
 	server := NewDoormanServer()
 
 	in := &pb.CheckRequest{
-		User:   "user:alice",
-		Name:   "owner",
-		Object: "product:apple",
+		From: "product:apple",
+		Name: "owner",
+		To:   "user:alice",
 	}
 
 	// Check before
@@ -111,7 +111,7 @@ func TestCheckComputed(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, true, res.Connected)
 
-	in.User = "user:randomusernoperms"
+	in.To = "user:randomusernoperms"
 	res, err = server.Check(ctx, in)
 	assert.NoError(t, err)
 	assert.Equal(t, false, res.Connected)
