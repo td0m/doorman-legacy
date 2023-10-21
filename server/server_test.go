@@ -110,4 +110,9 @@ func TestCheckComputed(t *testing.T) {
 	res, err = server.Check(ctx, in)
 	assert.NoError(t, err)
 	assert.Equal(t, true, res.Connected)
+
+	in.User = "user:randomusernoperms"
+	res, err = server.Check(ctx, in)
+	assert.NoError(t, err)
+	assert.Equal(t, false, res.Connected)
 }
