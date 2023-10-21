@@ -143,23 +143,23 @@ func TestListRelationsRec(t *testing.T) {
 
 	// Create Relations
 
-	ab := &Relation{ID: "ab_", From: "collection:a", To: "collection:b"}
+	ab := &Relation{ID: "ab", From: "collection:a", To: "collection:b"}
 	err := ab.Create(ctx)
 	require.NoError(t, err)
 
-	a2b := &Relation{ID: "a2b_", From: "collection:a2", To: "collection:b"}
+	a2b := &Relation{ID: "a2b", From: "collection:a2", To: "collection:b"}
 	err = a2b.Create(ctx)
 	require.NoError(t, err)
 
-	bc := &Relation{ID: "bc_", From: "collection:b", To: "collection:c"}
+	bc := &Relation{ID: "bc", From: "collection:b", To: "collection:c"}
 	err = bc.Create(ctx)
 	require.NoError(t, err)
 
-	cd := &Relation{ID: "cd_", From: "collection:c", To: "collection:d"}
+	cd := &Relation{ID: "cd", From: "collection:c", To: "collection:d"}
 	err = cd.Create(ctx)
 	require.NoError(t, err)
 
-	de := &Relation{ID: "de_", From: "collection:d", To: "collection:e"}
+	de := &Relation{ID: "de", From: "collection:d", To: "collection:e"}
 	err = de.Create(ctx)
 	require.NoError(t, err)
 

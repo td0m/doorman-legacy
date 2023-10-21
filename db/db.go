@@ -13,6 +13,10 @@ import (
 
 var pg *pgxpool.Pool
 
+func Conn() *pgxpool.Pool {
+	return pg
+}
+
 func Init(ctx context.Context) error {
 	var err error
 	pg, err = pgxpool.New(ctx, "")

@@ -1,0 +1,77 @@
+
+syntax = "proto3";
+option go_package = "github.com/td0m/doorman/gen/go";
+
+package doorman;
+
+import "google/api/annotations.proto";
+
+service Doorman {
+	rpc Connect(ConnectRequest) returns (Relation) {
+		option (google.api.http) = {
+			post: "/relations"
+			body: "*"
+		};
+	};
+
+	rpc Disconnect(DisconnectRequest) returns (Relation) {
+		option (google.api.http) = {
+			delete: "/relations/{id}"
+		};
+	};
+
+	rpc Retrieve(RetrieveRequest) returns (Relation) {
+		option (google.api.http) = {
+			get: "/relations/{id}"
+		};
+	};
+
+	rpc Check(CheckRequest) returns (CheckResponse) {
+		option (google.api.http) = {
+			post: "/relations:check"
+			body: "*"
+		};
+	};
+
+	// TODO: ListForward for more info
+
+	// TODO: list objects
+	// rpc List(RelationsListRequest) returns (RelationsListResponse) {
+	// 	option (google.api.http) = {
+	// 		get: "/relations"
+	// 	};
+	// };
+}
+
+message Relation {
+	string id = 1;
+	string from = 2;
+	string name = 3;
+	string to = 4;
+}
+
+message ConnectRequest {
+	optional string id = 1;
+	string from = 2;
+	string name = 3;
+	string to = 4;
+}
+
+message RetrieveRequest {
+	string id = 1;
+}
+
+message CheckRequest {
+	string user = 1;
+	string name = 3;
+	string object = 2;
+}
+
+message CheckResponse {
+	bool connected = 1;
+}
+
+message DisconnectRequest {
+	string id = 1;
+}
+

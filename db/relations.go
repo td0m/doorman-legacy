@@ -44,6 +44,23 @@ func (d *Dependency) Create(ctx context.Context) error {
 	return nil
 }
 
+func Check(ctx context.Context, from, name, to string) ([]Relation, error) {
+	query := `
+		select id, "from", "to", name
+		from relations
+		where
+			"from" = $1 and
+			name   = $2 and
+			"to"   = $3 `
+
+	var relations []Relation
+	if err := pgxscan.Select(ctx, pg, &relations, query, from, name, to); err != nil {
+		return nil, fmt.Errorf("select failed: %w", err)
+	}
+
+	return relations, nil
+}
+
 func (r *Relation) Create(ctx context.Context) error {
 	if r.ID == "" {
 		r.ID = xid.New().String()
@@ -102,6 +119,23 @@ func (r *Relation) Create(ctx context.Context) error {
 
 func extractType(s string) string {
 	return strings.SplitN(s, ":", 2)[0]
+}
+
+func ListForward(ctx context.Context, from, name string) ([]Relation, error) {
+	query := `
+		select id, "from", name, "to"
+		from relations
+		where
+			"from" = $1 and
+			name   = $2
+	`
+
+	var rs []Relation
+	if err := pgxscan.Select(ctx, pg, &rs, query, from, name); err != nil {
+		return nil, err
+	}
+
+	return rs, nil
 }
 
 func RetrieveRelation(ctx context.Context, id string) (*Relation, error) {
