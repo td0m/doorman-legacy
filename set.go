@@ -61,6 +61,10 @@ type Set struct {
 	Label string
 }
 
+func (s Set) String() string {
+	return string(s.U) + "." + string(s.Label)
+}
+
 func (s Set) Contains(ctx context.Context, store Store, el Element) (bool, error) {
 	// Reason why we not using a union here rn is performance
 	directlyContains, err := store.Check(ctx, s, el)

@@ -14,7 +14,7 @@ import (
 
 type setStore struct {
 	schema schema.Schema
-	tuples store.Postgres
+	tuples store.Store
 }
 
 func (s setStore) Computed(ctx context.Context, set doorman.Set) (doorman.SetOrOperation, error) {
@@ -29,7 +29,7 @@ func (s setStore) Check(ctx context.Context, set doorman.Set, el doorman.Element
 	return s.tuples.Check(ctx, set, el)
 }
 
-func NewDoormanServer(sch schema.Schema, store store.Postgres) *Doorman {
+func NewDoormanServer(sch schema.Schema, store store.Store) *Doorman {
 	return &Doorman{
 		setStore: setStore{schema: sch, tuples: store},
 	}
