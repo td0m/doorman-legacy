@@ -60,3 +60,18 @@ func (u Union) Contains(ctx context.Context, store Store, el Element) (bool, err
 	}
 	return false, nil
 }
+
+type Intersection []SetOrOperation
+
+func (i Intersection) Contains(ctx context.Context, store Store, el Element) (bool, error) {
+	for _, setOrOp := range i {
+		contains, err := setOrOp.Contains(ctx, store, el)
+		if err != nil {
+			return false, err
+		}
+		if !contains {
+			return false, nil
+		}
+	}
+	return true, nil
+}

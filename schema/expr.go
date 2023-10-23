@@ -9,6 +9,8 @@ import (
 
 type Absolute doorman.Set
 
+type Intersection []SetExpr
+
 type NilComputed string
 
 type Relation struct {
@@ -31,6 +33,18 @@ type Union []SetExpr
 
 func (s Absolute) ToSet(_ context.Context, _ Resolver, _ doorman.Element) (doorman.SetOrOperation, error) {
 	return doorman.Set(s), nil
+}
+
+func (i Intersection) ToSet(ctx context.Context, r Resolver, atEl doorman.Element) (doorman.SetOrOperation, error) {
+	sets := make([]doorman.SetOrOperation, len(i))
+	for i, v := range i {
+		set, err := v.ToSet(ctx, r, atEl)
+		if err != nil {
+			return nil, fmt.Errorf("child %d failed: %w", i, err)
+		}
+		sets[i] = set
+	}
+	return doorman.Intersection(sets), nil
 }
 
 func (n NilComputed) ToSet(ctx context.Context, r Resolver, contextualElement doorman.Element) (doorman.SetOrOperation, error) {
