@@ -2,11 +2,16 @@ package server
 
 import (
 	"context"
+	"fmt"
+	"strconv"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/td0m/doorman"
 	pb "github.com/td0m/doorman/gen/go"
 	"github.com/td0m/doorman/schema"
 	store "github.com/td0m/doorman/store"
@@ -511,3 +516,151 @@ func TestCheckComputedExclusion(t *testing.T) {
 }
 
 // TODO: no cyclical computed
+
+
+
+func TestPerf(t *testing.T) {
+	ctx := context.Background()
+	cleanup(ctx)
+
+	schema := schema.Schema{
+		Types: []schema.Type{
+			{
+				Name: "group",
+				Relations: []schema.Relation{
+					{Label: "sub"},
+					{Label: "member", Computed: schema.Relative2{From: "sub", Relation: "member"}},
+				},
+			},
+		},
+	}
+	db := store.NewPostgres(pg)
+	cacheddb := store.NewCached(db)
+	server := NewDoormanServer(schema, cacheddb)
+	server.cache = &cacheddb
+
+	err := nestedTuples(ctx, db, doorman.Element("group:admins"), 6)
+	require.NoError(t, err)
+
+	// {
+	// 	start := time.Now()
+	//
+	// 	res, err := server.Check(ctx, &pb.CheckRequest{
+	// 		U:     "group:admins",
+	// 		Label: "member",
+	// 		V:     "user:alice",
+	// 	})
+	// 	assert.NoError(t, err)
+	//
+	// 	fmt.Println(time.Since(start), res.Connected)
+	// }
+	//
+	// {
+	// 	start := time.Now()
+	//
+	// 	res, err := server.Check(ctx, &pb.CheckRequest{
+	// 		U:     "group:admins",
+	// 		Label: "member",
+	// 		V:     "user:alice",
+	// 	})
+	// 	assert.NoError(t, err)
+	//
+	// 	fmt.Println(time.Since(start), res.Connected)
+	// }
+
+	{
+		start := time.Now()
+
+		res, err := server.Check(ctx, &pb.CheckRequest{
+			U:     "group:admins",
+			Label: "member",
+			V:     "user:admins_0_2_1_1_0",
+		})
+		assert.NoError(t, err)
+
+		fmt.Println(time.Since(start), res.Connected)
+	}
+
+	{
+		start := time.Now()
+
+		res, err := server.Check(ctx, &pb.CheckRequest{
+			U:     "group:admins_0_2_1",
+			Label: "member",
+			V:     "user:admins_0_2_1_1_0",
+		})
+		assert.NoError(t, err)
+
+		fmt.Println(time.Since(start), res.Connected)
+	}
+
+	{
+		start := time.Now()
+
+		res, err := server.Check(ctx, &pb.CheckRequest{
+			U:     "group:admins",
+			Label: "member",
+			V:     "user:admins_5_4_3_2_1",
+		})
+		assert.NoError(t, err)
+
+		fmt.Println(time.Since(start), res.Connected)
+	}
+	{
+		start := time.Now()
+
+		res, err := server.Check(ctx, &pb.CheckRequest{
+			U:     "group:admins",
+			Label: "member",
+			V:     "user:admins_5_4_3_2_1",
+		})
+		assert.NoError(t, err)
+
+		fmt.Println(time.Since(start), res.Connected)
+	}
+
+	{
+		start := time.Now()
+
+		res, err := server.Check(ctx, &pb.CheckRequest{
+			U:     "group:admins",
+			Label: "member",
+			V:     "user:admins_faker",
+		})
+		assert.NoError(t, err)
+
+		fmt.Println(time.Since(start), res.Connected)
+	}
+
+	t.Fail()
+}
+
+func nestedTuples(ctx context.Context, db store.Postgres, u doorman.Element, N int) error {
+	for n := 0; n < N; n++ {
+		tuple := store.Tuple{
+			U:     doorman.Element(u),
+			Label: "sub",
+			V:     doorman.Element(string(u) + `_` + strconv.Itoa(n)),
+		}
+		err := db.Add(ctx, tuple)
+		if err != nil {
+			return fmt.Errorf("failed: %w", err)
+		}
+
+		memberTuple := store.Tuple{
+			U:     tuple.V,
+			Label: "member",
+			V:     doorman.Element(strings.ReplaceAll(string(tuple.V), "group", "user")),
+		}
+		err = db.Add(ctx, memberTuple)
+		if err != nil {
+			return fmt.Errorf("failed: %w", err)
+		}
+
+		if err := nestedTuples(ctx, db, tuple.V, N-1); err != nil {
+			return fmt.Errorf("makeEdges failed: %w", err)
+		}
+	}
+
+	return nil
+}

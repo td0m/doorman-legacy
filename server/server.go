@@ -38,6 +38,8 @@ func NewDoormanServer(sch schema.Schema, store store.Store) *Doorman {
 type Doorman struct {
 	*pb.UnimplementedDoormanServer
 	setStore setStore
+
+	cache *store.Cached
 }
 
 func (d *Doorman) Write(ctx context.Context, request *pb.WriteRequest) (*pb.WriteResponse, error) {
@@ -62,7 +64,10 @@ func (d *Doorman) Check(ctx context.Context, request *pb.CheckRequest) (*pb.Chec
 	if err != nil {
 		return nil, fmt.Errorf("computedSet.Contains failed: %w", err)
 	}
-	fmt.Println(path)
+
+	if d.cache != nil && contains {
+		_ = d.cache.LogSuccessfulCheck(path, v)
+	}
 
 	return &pb.CheckResponse{
 		Connected: contains,
