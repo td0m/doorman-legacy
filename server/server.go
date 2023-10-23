@@ -58,10 +58,11 @@ func (d *Doorman) Check(ctx context.Context, request *pb.CheckRequest) (*pb.Chec
 		return nil, fmt.Errorf("schema relationDef.ToSet failed: %w", err)
 	}
 
-	contains, err := set.Contains(ctx, d.setStore, v)
+	contains, path, err := set.Contains(ctx, d.setStore, v)
 	if err != nil {
 		return nil, fmt.Errorf("computedSet.Contains failed: %w", err)
 	}
+	fmt.Println(path)
 
 	return &pb.CheckResponse{
 		Connected: contains,

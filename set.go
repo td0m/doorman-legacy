@@ -10,50 +10,53 @@ type Exclusion struct {
 	B SetOrOperation
 }
 
-func (e Exclusion) Contains(ctx context.Context, store Store, el Element) (bool, error) {
-	Acontains, err := e.A.Contains(ctx, store, el)
+func (e Exclusion) Contains(ctx context.Context, store Store, el Element) (bool, []Set, error) {
+	Acontains, path, err := e.A.Contains(ctx, store, el)
 	if err != nil {
-		return false, fmt.Errorf("A.Contains failed: %w", err)
+		return false, nil, fmt.Errorf("A.Contains failed: %w", err)
 	}
 	if !Acontains {
-		return false, nil
+		return false, nil, nil
 	}
 
-	Bcontains, err := e.B.Contains(ctx, store, el)
+	Bcontains, _, err := e.B.Contains(ctx, store, el)
 	if err != nil {
-		return false, fmt.Errorf("B.Contains failed: %w", err)
+		return false, nil, fmt.Errorf("B.Contains failed: %w", err)
 	}
 
 	if Bcontains {
-		return false, nil
+		return false, nil, nil
 	}
 
-	return true, nil
+	return true, path, nil
 }
 
 type Intersection []SetOrOperation
 
-func (i Intersection) Contains(ctx context.Context, store Store, el Element) (bool, error) {
+func (i Intersection) Contains(ctx context.Context, store Store, el Element) (bool, []Set, error) {
+	var lastPath []Set
 	for _, setOrOp := range i {
-		contains, err := setOrOp.Contains(ctx, store, el)
+		contains, path, err := setOrOp.Contains(ctx, store, el)
 		if err != nil {
-			return false, err
+			return false, nil, err
 		}
 		if !contains {
-			return false, nil
+			return false, nil, nil
 		}
+		lastPath = path
 	}
-	return true, nil
+	// TODO: consider how to log all paths...
+	return true, lastPath, nil
 }
 
 type NonComputedSet Set
 
-func (s NonComputedSet) Contains(ctx context.Context, store Store, el Element) (bool, error) {
+func (s NonComputedSet) Contains(ctx context.Context, store Store, el Element) (bool, []Set, error) {
 	directlyContains, err := store.Check(ctx, Set(s), el)
 	if err != nil {
-		return false, fmt.Errorf("store.Check failed: %w", err)
+		return false, nil, fmt.Errorf("store.Check failed: %w", err)
 	}
-	return directlyContains, nil
+	return directlyContains, []Set{Set(s)}, nil
 }
 
 type Set struct {
@@ -65,43 +68,52 @@ func (s Set) String() string {
 	return string(s.U) + "." + string(s.Label)
 }
 
-func (s Set) Contains(ctx context.Context, store Store, el Element) (bool, error) {
+func (s Set) Contains(ctx context.Context, store Store, el Element) (bool, []Set, error) {
 	// Reason why we not using a union here rn is performance
 	directlyContains, err := store.Check(ctx, s, el)
 	if err != nil {
-		return false, fmt.Errorf("store.Check failed: %w", err)
+		return false, nil, fmt.Errorf("store.Check failed: %w", err)
 	}
 	if directlyContains {
-		return true, nil
+		return true, []Set{Set(s)}, nil
 	}
 
 	computed, err := store.Computed(ctx, s)
 	if err != nil {
-		return false, fmt.Errorf("store.ListSubsets failed: %w", err)
+		return false, nil, fmt.Errorf("store.ListSubsets failed: %w", err)
 	}
 
 	if computed == nil {
-		return false, nil
+		return false, nil, nil
 	}
 
-	return computed.Contains(ctx, store, el)
+	computedContains, path, err := computed.Contains(ctx, store, el)
+	if err != nil {
+		return false, nil, fmt.Errorf("computed.Contains failed: %w", err)
+	}
+
+	if !computedContains {
+		return false, nil, nil
+	}
+
+	return true, append(path, Set(s)), nil
 }
 
 type SetOrOperation interface {
-	Contains(ctx context.Context, store Store, el Element) (bool, error)
+	Contains(ctx context.Context, store Store, el Element) (bool, []Set, error)
 }
 
 type Union []SetOrOperation
 
-func (u Union) Contains(ctx context.Context, store Store, el Element) (bool, error) {
+func (u Union) Contains(ctx context.Context, store Store, el Element) (bool, []Set, error) {
 	for _, setOrOp := range u {
-		contains, err := setOrOp.Contains(ctx, store, el)
+		contains, path, err := setOrOp.Contains(ctx, store, el)
 		if err != nil {
-			return false, err
+			return false, nil, err
 		}
 		if contains {
-			return contains, nil
+			return contains, path, nil
 		}
 	}
-	return false, nil
+	return false, nil, nil
 }
