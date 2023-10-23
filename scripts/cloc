@@ -1,0 +1,2 @@
+#!/usr/bin/env bash
+gocloc . --by-file --match '\.(go|proto)$' --not-match='(testing.go|_test\.go)$' --not-match-d="^(gen|cmd|tmp)"

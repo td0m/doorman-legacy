@@ -1,0 +1,47 @@
+syntax = "proto3";
+option go_package = "github.com/td0m/doorman/gen/go";
+
+package doorman;
+
+import "google/api/annotations.proto";
+
+service Doorman {
+	rpc Write(WriteRequest) returns (WriteResponse) {
+		option (google.api.http) = {
+			post: "/write"
+			body: "*"
+		};
+	};
+
+	rpc Check(CheckRequest) returns (CheckResponse) {
+		option (google.api.http) = {
+			post: "/check"
+			body: "*"
+		};
+	};
+}
+
+message Tuple {
+	string u = 1;
+	string v = 2;
+	string label = 3;
+}
+
+message WriteRequest {
+	repeated Tuple writes = 1;
+	repeated Tuple deletes = 2;
+}
+
+message WriteResponse {
+}
+
+message CheckRequest {
+	string u = 1;
+	string v = 3;
+	string label = 2;
+}
+
+message CheckResponse {
+	bool connected = 1;
+}
+
