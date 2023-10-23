@@ -32,12 +32,15 @@ func (d *Doorman) Check(ctx context.Context, request *pb.CheckRequest) (*pb.Chec
 	u := doorman.Element(request.U)
 	v := doorman.Element(request.V)
 
-	uTypeDef, ok := d.Schema.Types[u.Type()]
-	if !ok {
-		return nil, fmt.Errorf("failed to get type '%s'", u.Type())
+	relationDef, err := d.Schema.GetRelation(u, request.Label)
+	if err != nil {
+		return nil, fmt.Errorf("schema failed to get relation: %w", err)
 	}
-	relationDef := uTypeDef[request.Label]
-	set := relationDef.Computed.ToSet(u)
+
+	set, err := relationDef.ToSet(ctx, u)
+	if err != nil {
+		return nil, fmt.Errorf("schema relationDef.ToSet failed: %w", err)
+	}
 
 	contains, err := set.Contains(ctx, d.Store, v)
 	if err != nil {

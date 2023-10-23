@@ -1,4 +1,4 @@
-package tuples
+package store
 
 import (
 	"context"
@@ -17,13 +17,13 @@ func NewPostgres(conn *pgxpool.Pool) Postgres {
 	return Postgres{conn: conn}
 }
 
-func (p Postgres) Add(ctx context.Context, t doorman.Tuple) error {
+func (p Postgres) Add(ctx context.Context, set doorman.Set, element doorman.Element) error {
 	query := `
 		insert into tuples(u, label, v)
 		values($1, $2, $3)
 	`
 
-	if _, err := p.conn.Exec(ctx, query, t.U, t.Label, t.V); err != nil {
+	if _, err := p.conn.Exec(ctx, query, set.U, set.Label, element); err != nil {
 		return err
 	}
 	return nil
@@ -33,9 +33,9 @@ func (p Postgres) Remove(ctx context.Context, id string) error {
 	return nil
 }
 
-func (p Postgres) Check(ctx context.Context, s doorman.Set, e doorman.Element) ([]doorman.Element, error) {
+func (p Postgres) Check(ctx context.Context, s doorman.Set, e doorman.Element) (bool, error) {
 	query := `
-		select u, label, v
+		select v
 		from tuples
 		where
 			u      = $1 and
@@ -45,13 +45,13 @@ func (p Postgres) Check(ctx context.Context, s doorman.Set, e doorman.Element) (
 
 	var items []doorman.Element
 	if err := pgxscan.Select(ctx, p.conn, &items, query, s.U, s.Label, e); err != nil {
-		return nil, fmt.Errorf("select failed: %w", err)
+		return false, fmt.Errorf("select failed: %w", err)
 	}
 
-	return items, nil
+	return len(items) > 0, nil
 }
 
-func (p Postgres) ListElements(ctx context.Context, set doorman.Set) ([]string, error) {
+func (p Postgres) List(ctx context.Context, set doorman.Set) ([]doorman.Element, error) {
 	query := `
 		select v
 		from tuples
@@ -60,14 +60,14 @@ func (p Postgres) ListElements(ctx context.Context, set doorman.Set) ([]string, 
 			label  = $2
 	`
 
-	var items []string
+	var items []doorman.Element
 	rows, err := p.conn.Query(ctx, query, set.U, set.Label)
 	if err != nil {
 		return nil, fmt.Errorf("select failed: %w", err)
 	}
 
 	for rows.Next() {
-		var item string
+		var item doorman.Element
 		if err := rows.Scan(&item); err != nil {
 			return nil, fmt.Errorf("scan failed: %w", err)
 		}
