@@ -30,7 +30,7 @@ func (s Set) Contains(ctx context.Context, store Store, el Element) (bool, error
 		return true, nil
 	}
 
-	computed, err := store.ListSubsets(ctx, s)
+	computed, err := store.Computed(ctx, s)
 	if err != nil {
 		return false, fmt.Errorf("store.ListSubsets failed: %w", err)
 	}
@@ -60,4 +60,3 @@ func (u Union) Contains(ctx context.Context, store Store, el Element) (bool, err
 	}
 	return false, nil
 }
-

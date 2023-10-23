@@ -6,7 +6,7 @@ import (
 
 type SetEnumerator interface {
 	// ListElements(ctx context.Context, set Set) ([]Element, error)
-	ListSubsets(ctx context.Context, set Set) (SetOrOperation, error)
+	Computed(ctx context.Context, set Set) (SetOrOperation, error)
 }
 
 type SetChecker interface {

@@ -17,13 +17,13 @@ func NewPostgres(conn *pgxpool.Pool) Postgres {
 	return Postgres{conn: conn}
 }
 
-func (p Postgres) Add(ctx context.Context, set doorman.Set, element doorman.Element) error {
+func (p Postgres) Add(ctx context.Context, t Tuple) error {
 	query := `
 		insert into tuples(u, label, v)
 		values($1, $2, $3)
 	`
 
-	if _, err := p.conn.Exec(ctx, query, set.U, set.Label, element); err != nil {
+	if _, err := p.conn.Exec(ctx, query, t.U, t.Label, t.V); err != nil {
 		return err
 	}
 	return nil
@@ -48,12 +48,12 @@ func (p Postgres) Check(ctx context.Context, s doorman.Set, e doorman.Element) (
 		return false, fmt.Errorf("select failed: %w", err)
 	}
 
-	fmt.Println("check", s, e, len(items)>0)
+	fmt.Println("check", s, e, len(items) > 0)
 
 	return len(items) > 0, nil
 }
 
-func (p Postgres) List(ctx context.Context, set doorman.Set) ([]doorman.Element, error) {
+func (p Postgres) ListElements(ctx context.Context, set doorman.Set) ([]doorman.Element, error) {
 	query := `
 		select v
 		from tuples

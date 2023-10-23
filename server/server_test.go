@@ -7,7 +7,6 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/td0m/doorman"
 	pb "github.com/td0m/doorman/gen/go"
 	"github.com/td0m/doorman/schema"
 	store "github.com/td0m/doorman/store"
@@ -60,11 +59,12 @@ func TestCheckStored(t *testing.T) {
 	assert.Equal(t, false, res.Connected)
 
 	// Store
-	set := doorman.Set{
+	tuple := store.Tuple{
 		U:     "resource:banana",
 		Label: "owner",
+		V:     "user:alice",
 	}
-	err = db.Add(ctx, set, doorman.Element("user:alice"))
+	err = db.Add(ctx, tuple)
 	require.NoError(t, err)
 
 	// Can access after element was added
@@ -87,7 +87,7 @@ func TestCheckComputedViaRelativeEdge(t *testing.T) {
 				Name: "resource",
 				Relations: []schema.Relation{
 					{Label: "owner"},
-					{Label: "viewer", Computed: schema.RelativePath{"owner"}},
+					{Label: "viewer", Computed: schema.Relative("owner")},
 				},
 			},
 		},
@@ -106,11 +106,12 @@ func TestCheckComputedViaRelativeEdge(t *testing.T) {
 
 	// Store
 
-	set := doorman.Set{
+	tuple := store.Tuple{
 		U:     "resource:banana",
 		Label: "owner",
+		V:     "user:alice",
 	}
-	err = db.Add(ctx, set, doorman.Element("user:alice"))
+	err = db.Add(ctx, tuple)
 	require.NoError(t, err)
 
 	// Can access after element was added
@@ -123,58 +124,59 @@ func TestCheckComputedViaRelativeEdge(t *testing.T) {
 	assert.Equal(t, true, res.Connected)
 }
 
-//
-// func TestCheckComputedViaRelativeParentEdge(t *testing.T) {
-// 	edges.Cleanup()
-// 	ctx := context.Background()
-// 	server := NewDoormanServer()
-//
-// 	server.schema = doorman.Schema{
-// 		Nodes: map[string]doorman.Node{
-// 			"resource": map[string]doorman.ComputedSet{
-// 				"owner": doorman.Edge{Node: "", EdgePath: []string{"parent", "owner"}},
-// 			},
-// 		},
-// 	}
-//
-// 	// Cannot access before
-// 	res, err := server.Check(ctx, &pb.CheckRequest{
-// 		U:     "resource:banana",
-// 		Label: "owner",
-// 		V:     "user:alice",
-// 	})
-// 	assert.NoError(t, err)
-// 	assert.Equal(t, false, res.Connected)
-//
-// 	// Add edges
-//
-// 	e2 := store.Tuple{
-// 		U:     "resource:banana",
-// 		Label: "parent",
-// 		V:     "shop:foo",
-// 	}
-// 	err = e2.Create(ctx)
-// 	require.NoError(t, err)
-//
-//
-// 	e1 := store.Tuple{
-// 		U:     "shop:foo",
-// 		Label: "owner",
-// 		V:     "user:alice",
-// 	}
-// 	err = e1.Create(ctx)
-// 	require.NoError(t, err)
-//
-// 	// Can access after edge was added
-// 	res, err = server.Check(ctx, &pb.CheckRequest{
-// 		U:     "resource:banana",
-// 		Label: "owner",
-// 		V:     "user:alice",
-// 	})
-// 	assert.NoError(t, err)
-// 	assert.Equal(t, true, res.Connected)
-// }
-//
+func TestCheckComputedViaRelativeParentEdge(t *testing.T) {
+	ctx := context.Background()
+	cleanup(ctx)
+
+	schema := schema.Schema{
+		Types: []schema.Type{
+			{
+				Name: "resource",
+				Relations: []schema.Relation{
+					{Label: "parent"},
+					{Label: "owner", Computed: schema.Relative2{From: "parent", Relation: "owner"}},
+				},
+			},
+		},
+	}
+	db := store.NewPostgres(pg)
+	server := NewDoormanServer(schema, db)
+
+	// Cannot access before
+	res, err := server.Check(ctx, &pb.CheckRequest{
+		U:     "resource:banana",
+		Label: "owner",
+		V:     "user:alice",
+	})
+	assert.NoError(t, err)
+	assert.Equal(t, false, res.Connected)
+
+	// Add
+
+	err = db.Add(ctx, store.Tuple{
+		U:     "resource:banana",
+		Label: "parent",
+		V:     "shop:foo",
+	})
+	require.NoError(t, err)
+
+	err = db.Add(ctx, store.Tuple{
+		U:     "shop:foo",
+		Label: "owner",
+		V:     "user:alice",
+	})
+	require.NoError(t, err)
+
+	// Can access after edge was added
+	res, err = server.Check(ctx, &pb.CheckRequest{
+		U:     "resource:banana",
+		Label: "owner",
+		V:     "user:alice",
+	})
+	assert.NoError(t, err)
+	assert.Equal(t, true, res.Connected)
+}
+
 // func TestCheckComputedViaAbsoluteEdge(t *testing.T) {
 // 	ctx := context.Background()
 // 	server := NewDoormanServer()

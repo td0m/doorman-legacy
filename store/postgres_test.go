@@ -29,11 +29,12 @@ func TestTupleCreateSuccess(t *testing.T) {
 
 	ctx := context.Background()
 
-	s := doorman.Set{
+	s := Tuple{
 		U:     doorman.Element("resource:rnd" + xid.New().String()),
 		Label: "owner",
+		V:     doorman.Element("user:alice"),
 	}
 
-	err := db.Add(ctx, s, doorman.Element("user:alice"))
+	err := db.Add(ctx, s)
 	assert.NoError(t, err)
 }

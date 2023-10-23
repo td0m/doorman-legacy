@@ -17,12 +17,12 @@ type setStore struct {
 	tuples store.Postgres
 }
 
-func (s setStore) ListSubsets(ctx context.Context, set doorman.Set) (doorman.SetOrOperation, error) {
+func (s setStore) Computed(ctx context.Context, set doorman.Set) (doorman.SetOrOperation, error) {
 	rel, err := s.schema.GetRelation(set.U, set.Label)
 	if err != nil {
 		return nil, fmt.Errorf("GetRelation failed: %w", err)
 	}
-	return rel.Computed.ToSet(ctx, set.U)
+	return rel.Computed.ToSet(ctx, s.tuples, set.U)
 }
 
 func (s setStore) Check(ctx context.Context, set doorman.Set, el doorman.Element) (bool, error) {
@@ -53,7 +53,7 @@ func (d *Doorman) Check(ctx context.Context, request *pb.CheckRequest) (*pb.Chec
 		return nil, fmt.Errorf("schema failed to get relation: %w", err)
 	}
 
-	set, err := relationDef.ToSet(ctx, u)
+	set, err := relationDef.ToSet(ctx, d.setStore.tuples, u)
 	if err != nil {
 		return nil, fmt.Errorf("schema relationDef.ToSet failed: %w", err)
 	}
@@ -67,4 +67,3 @@ func (d *Doorman) Check(ctx context.Context, request *pb.CheckRequest) (*pb.Chec
 		Connected: contains,
 	}, nil
 }
-

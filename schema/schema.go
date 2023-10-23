@@ -57,26 +57,49 @@ type Relation struct {
 	Computed SetExpr
 }
 
-func (r Relation) ToSet(ctx context.Context, el doorman.Element) (doorman.SetOrOperation, error) {
-	return RelativePath{r.Label}.ToSet(ctx, el)
+func (r Relation) ToSet(ctx context.Context, rs Resolver, el doorman.Element) (doorman.SetOrOperation, error) {
+	return Relative(r.Label).ToSet(ctx, rs, el)
+}
+
+type Resolver interface {
+	ListElements(ctx context.Context, set doorman.Set) ([]doorman.Element, error)
 }
 
 type SetExpr interface {
-	ToSet(ctx context.Context, el doorman.Element) (doorman.SetOrOperation, error)
+	ToSet(ctx context.Context, r Resolver, el doorman.Element) (doorman.SetOrOperation, error)
 }
 
-type RelativePath []string
+type Relative2 struct {
+	From     string
+	Relation string
+}
 
-func (p RelativePath) ToSet(ctx context.Context, contextualElement doorman.Element) (doorman.SetOrOperation, error) {
+func (p Relative2) ToSet(ctx context.Context, r Resolver, contextualElement doorman.Element) (doorman.SetOrOperation, error) {
+	relations, err := r.ListElements(ctx, doorman.Set{U: contextualElement, Label: p.From})
+	if err != nil {
+		return nil, err
+	}
+
+	sets := make([]doorman.SetOrOperation, len(relations))
+	for i, r := range relations {
+		sets[i] = doorman.Set{U: r, Label: p.Relation}
+	}
+
+	return doorman.Union(sets), nil
+}
+
+type Relative string
+
+func (p Relative) ToSet(ctx context.Context, r Resolver, contextualElement doorman.Element) (doorman.SetOrOperation, error) {
 	return doorman.Set{
 		U:     contextualElement,
-		Label: p[0],
+		Label: string(p),
 	}, nil
 }
 
 type NilComputed string
 
-func (n NilComputed) ToSet(ctx context.Context, contextualElement doorman.Element) (doorman.SetOrOperation, error) {
+func (n NilComputed) ToSet(ctx context.Context, r Resolver, contextualElement doorman.Element) (doorman.SetOrOperation, error) {
 	return doorman.NonComputedSet{}, nil
 }
 
@@ -84,6 +107,6 @@ type Union struct {
 	Exprs []SetExpr
 }
 
-func (u Union) ToSet(ctx context.Context, atEl doorman.Element) (doorman.SetOrOperation, error) {
+func (u Union) ToSet(ctx context.Context, r Resolver, atEl doorman.Element) (doorman.SetOrOperation, error) {
 	return doorman.Union{}, nil
 }
