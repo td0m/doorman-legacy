@@ -77,7 +77,7 @@ func TestCheckStored(t *testing.T) {
 	assert.Equal(t, true, res.Connected)
 }
 
-func TestCheckComputedViaRelativeEdge(t *testing.T) {
+func TestCheckComputedViaRelative(t *testing.T) {
 	ctx := context.Background()
 	cleanup(ctx)
 
@@ -124,7 +124,7 @@ func TestCheckComputedViaRelativeEdge(t *testing.T) {
 	assert.Equal(t, true, res.Connected)
 }
 
-func TestCheckComputedViaRelativeParentEdge(t *testing.T) {
+func TestCheckComputedViaRelative2(t *testing.T) {
 	ctx := context.Background()
 	cleanup(ctx)
 
@@ -167,7 +167,7 @@ func TestCheckComputedViaRelativeParentEdge(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	// Can access after edge was added
+	// Can access after
 	res, err = server.Check(ctx, &pb.CheckRequest{
 		U:     "resource:banana",
 		Label: "owner",
@@ -177,48 +177,102 @@ func TestCheckComputedViaRelativeParentEdge(t *testing.T) {
 	assert.Equal(t, true, res.Connected)
 }
 
-// func TestCheckComputedViaAbsoluteEdge(t *testing.T) {
-// 	ctx := context.Background()
-// 	server := NewDoormanServer()
-//
-// 	schema := = doorman.Schema{
-// 		Nodes: map[string]doorman.Node{
-// 			"group": map[string]doorman.ComputedSet{
-// 				"member": doorman.Edge{},
-// 			},
-// 			"resource": map[string]doorman.ComputedSet{
-// 				"owner": doorman.Edge{Node: "group:admins", EdgePath: []string{"member"}},
-// 			},
-// 		},
-// 	}
-//
-// 	// Cannot access before
-// 	res, err := server.Check(ctx, &pb.CheckRequest{
-// 		U:     "resource:banana",
-// 		Label: "owner",
-// 		V:     "user:alice",
-// 	})
-// 	assert.NoError(t, err)
-// 	assert.Equal(t, false, res.Connected)
-//
-// 	// Add edge
-// 	e := edges.Edge{
-// 		U:     "group:admins",
-// 		Label: "member",
-// 		V:     "user:alice",
-// 	}
-// 	err = e.Create(ctx)
-// 	require.NoError(t, err)
-//
-// 	// Can access after edge was added
-// 	res, err = server.Check(ctx, &pb.CheckRequest{
-// 		U:     "resource:banana",
-// 		Label: "owner",
-// 		V:     "user:alice",
-// 	})
-// 	assert.NoError(t, err)
-// 	assert.Equal(t, true, res.Connected)
-// }
-//
-// func TestCheckComputedViaAnotherComputedEdge(t *testing.T) {
-// }
+func TestCheckComputedViaAbsolute(t *testing.T) {
+	ctx := context.Background()
+	cleanup(ctx)
+
+	schema := schema.Schema{
+		Types: []schema.Type{
+			{
+				Name: "group",
+				Relations: []schema.Relation{
+					{Label: "member"},
+				},
+			},
+			{
+				Name: "resource",
+				Relations: []schema.Relation{
+					{Label: "owner", Computed: schema.Absolute{U: "group:admins", Label: "member"}},
+				},
+			},
+		},
+	}
+	db := store.NewPostgres(pg)
+	server := NewDoormanServer(schema, db)
+
+	// Cannot access before
+	res, err := server.Check(ctx, &pb.CheckRequest{
+		U:     "resource:banana",
+		Label: "owner",
+		V:     "user:alice",
+	})
+	assert.NoError(t, err)
+	assert.Equal(t, false, res.Connected)
+
+	// Add
+
+	err = db.Add(ctx, store.Tuple{
+		U:     "group:admins",
+		Label: "member",
+		V:     "user:alice",
+	})
+	require.NoError(t, err)
+
+	// Can access after
+	res, err = server.Check(ctx, &pb.CheckRequest{
+		U:     "resource:banana",
+		Label: "owner",
+		V:     "user:alice",
+	})
+	assert.NoError(t, err)
+	assert.Equal(t, true, res.Connected)
+}
+
+func TestCheckComputedViaAnotherComputed(t *testing.T) {
+	ctx := context.Background()
+	cleanup(ctx)
+
+	schema := schema.Schema{
+		Types: []schema.Type{
+			{
+				Name: "resource",
+				Relations: []schema.Relation{
+					{Label: "owner"},
+					{Label: "reader", Computed: schema.Relative("owner")},
+					{Label: "can_search", Computed: schema.Relative("reader")},
+				},
+			},
+		},
+	}
+	db := store.NewPostgres(pg)
+	server := NewDoormanServer(schema, db)
+
+	// Cannot access before
+	res, err := server.Check(ctx, &pb.CheckRequest{
+		U:     "resource:banana",
+		Label: "can_search",
+		V:     "user:alice",
+	})
+	assert.NoError(t, err)
+	assert.Equal(t, false, res.Connected)
+
+	// Add
+
+	err = db.Add(ctx, store.Tuple{
+		U:     "resource:banana",
+		Label: "owner",
+		V:     "user:alice",
+	})
+	require.NoError(t, err)
+
+	// Can access after
+	res, err = server.Check(ctx, &pb.CheckRequest{
+		U:     "resource:banana",
+		Label: "can_search",
+		V:     "user:alice",
+	})
+	assert.NoError(t, err)
+	assert.Equal(t, true, res.Connected)
+}
+
+// TODO: no cyclical computed

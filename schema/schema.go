@@ -110,3 +110,9 @@ type Union struct {
 func (u Union) ToSet(ctx context.Context, r Resolver, atEl doorman.Element) (doorman.SetOrOperation, error) {
 	return doorman.Union{}, nil
 }
+
+type Absolute doorman.Set
+
+func (s Absolute) ToSet(_ context.Context, _ Resolver, _ doorman.Element) (doorman.SetOrOperation, error) {
+	return doorman.Set(s), nil
+}
