@@ -5,7 +5,8 @@ import (
 )
 
 type SetEnumerator interface {
-	List(ctx context.Context, set Set) ([]Element, error)
+	// ListElements(ctx context.Context, set Set) ([]Element, error)
+	ListSubsets(ctx context.Context, set Set) (SetOrOperation, error)
 }
 
 type SetChecker interface {
@@ -18,7 +19,7 @@ type SetModifier interface {
 }
 
 type Store interface {
-	SetModifier
+	// SetModifier
 	SetChecker
 	SetEnumerator
 }

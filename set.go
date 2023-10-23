@@ -5,12 +5,23 @@ import (
 	"fmt"
 )
 
+type NonComputedSet Set
+
+func (s NonComputedSet) Contains(ctx context.Context, store Store, el Element) (bool, error) {
+	directlyContains, err := store.Check(ctx, Set(s), el)
+	if err != nil {
+		return false, fmt.Errorf("store.Check failed: %w", err)
+	}
+	return directlyContains, nil
+}
+
 type Set struct {
 	U     Element
 	Label string
 }
 
 func (s Set) Contains(ctx context.Context, store Store, el Element) (bool, error) {
+	// Reason why we not using a union here rn is performance
 	directlyContains, err := store.Check(ctx, s, el)
 	if err != nil {
 		return false, fmt.Errorf("store.Check failed: %w", err)
@@ -18,7 +29,17 @@ func (s Set) Contains(ctx context.Context, store Store, el Element) (bool, error
 	if directlyContains {
 		return true, nil
 	}
-	return false, nil
+
+	computed, err := store.ListSubsets(ctx, s)
+	if err != nil {
+		return false, fmt.Errorf("store.ListSubsets failed: %w", err)
+	}
+
+	if computed == nil {
+		return false, nil
+	}
+
+	return computed.Contains(ctx, store, el)
 }
 
 type SetOrOperation interface {
@@ -39,3 +60,4 @@ func (u Union) Contains(ctx context.Context, store Store, el Element) (bool, err
 	}
 	return false, nil
 }
+

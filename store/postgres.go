@@ -48,6 +48,8 @@ func (p Postgres) Check(ctx context.Context, s doorman.Set, e doorman.Element) (
 		return false, fmt.Errorf("select failed: %w", err)
 	}
 
+	fmt.Println("check", s, e, len(items)>0)
+
 	return len(items) > 0, nil
 }
 

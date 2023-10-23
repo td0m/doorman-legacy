@@ -59,7 +59,7 @@ func TestCheckStored(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, false, res.Connected)
 
-	// Add edge
+	// Store
 	set := doorman.Set{
 		U:     "resource:banana",
 		Label: "owner",
@@ -67,7 +67,7 @@ func TestCheckStored(t *testing.T) {
 	err = db.Add(ctx, set, doorman.Element("user:alice"))
 	require.NoError(t, err)
 
-	// Can access after edge was added
+	// Can access after element was added
 	res, err = server.Check(ctx, &pb.CheckRequest{
 		U:     "resource:banana",
 		Label: "owner",
@@ -77,48 +77,52 @@ func TestCheckStored(t *testing.T) {
 	assert.Equal(t, true, res.Connected)
 }
 
-//
-// func TestCheckComputedViaRelativeEdge(t *testing.T) {
-// 	edges.Cleanup()
-// 	ctx := context.Background()
-// 	server := NewDoormanServer()
-//
-// 	server.schema = doorman.Schema{
-// 		Nodes: map[string]doorman.Node{
-// 			"resource": map[string]doorman.ComputedSet{
-// 				"viewer": doorman.Edge{Node: "", EdgePath: []string{"owner"}},
-// 			},
-// 		},
-// 	}
-//
-// 	// Cannot access before
-// 	res, err := server.Check(ctx, &pb.CheckRequest{
-// 		U:     "resource:banana",
-// 		Label: "viewer",
-// 		V:     "user:alice",
-// 	})
-// 	assert.NoError(t, err)
-// 	assert.Equal(t, false, res.Connected)
-//
-// 	// Add edges
-//
-// 	e1 := store.Tuple{
-// 		U:     "resource:banana",
-// 		Label: "owner",
-// 		V:     "user:alice",
-// 	}
-// 	err = e1.Create(ctx)
-// 	require.NoError(t, err)
-//
-// 	// Can access after edge was added
-// 	res, err = server.Check(ctx, &pb.CheckRequest{
-// 		U:     "resource:banana",
-// 		Label: "viewer",
-// 		V:     "user:alice",
-// 	})
-// 	assert.NoError(t, err)
-// 	assert.Equal(t, true, res.Connected)
-// }
+func TestCheckComputedViaRelativeEdge(t *testing.T) {
+	ctx := context.Background()
+	cleanup(ctx)
+
+	schema := schema.Schema{
+		Types: []schema.Type{
+			{
+				Name: "resource",
+				Relations: []schema.Relation{
+					{Label: "owner"},
+					{Label: "viewer", Computed: schema.RelativePath{"owner"}},
+				},
+			},
+		},
+	}
+	db := store.NewPostgres(pg)
+	server := NewDoormanServer(schema, db)
+
+	// Cannot access before
+	res, err := server.Check(ctx, &pb.CheckRequest{
+		U:     "resource:banana",
+		Label: "viewer",
+		V:     "user:alice",
+	})
+	assert.NoError(t, err)
+	assert.Equal(t, false, res.Connected)
+
+	// Store
+
+	set := doorman.Set{
+		U:     "resource:banana",
+		Label: "owner",
+	}
+	err = db.Add(ctx, set, doorman.Element("user:alice"))
+	require.NoError(t, err)
+
+	// Can access after element was added
+	res, err = server.Check(ctx, &pb.CheckRequest{
+		U:     "resource:banana",
+		Label: "viewer",
+		V:     "user:alice",
+	})
+	assert.NoError(t, err)
+	assert.Equal(t, true, res.Connected)
+}
+
 //
 // func TestCheckComputedViaRelativeParentEdge(t *testing.T) {
 // 	edges.Cleanup()
