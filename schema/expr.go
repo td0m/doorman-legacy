@@ -9,6 +9,11 @@ import (
 
 type Absolute doorman.Set
 
+type Exclusion struct {
+	A SetExpr
+	B SetExpr
+}
+
 type Intersection []SetExpr
 
 type NilComputed string
@@ -33,6 +38,19 @@ type Union []SetExpr
 
 func (s Absolute) ToSet(_ context.Context, _ Resolver, _ doorman.Element) (doorman.SetOrOperation, error) {
 	return doorman.Set(s), nil
+}
+
+func (e Exclusion) ToSet(ctx context.Context, r Resolver, atEl doorman.Element) (doorman.SetOrOperation, error) {
+	setA, err := e.A.ToSet(ctx, r, atEl)
+	if err != nil {
+		return nil, fmt.Errorf("set A failed: %w", err)
+	}
+
+	setB, err := e.B.ToSet(ctx, r, atEl)
+	if err != nil {
+		return nil, fmt.Errorf("set B failed: %w", err)
+	}
+	return doorman.Exclusion{A: setA, B: setB}, nil
 }
 
 func (i Intersection) ToSet(ctx context.Context, r Resolver, atEl doorman.Element) (doorman.SetOrOperation, error) {

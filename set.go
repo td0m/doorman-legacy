@@ -75,3 +75,29 @@ func (i Intersection) Contains(ctx context.Context, store Store, el Element) (bo
 	}
 	return true, nil
 }
+
+type Exclusion struct {
+	A SetOrOperation
+	B SetOrOperation
+}
+
+func (e Exclusion) Contains(ctx context.Context, store Store, el Element) (bool, error) {
+	Acontains, err := e.A.Contains(ctx, store, el)
+	if err != nil {
+		return false, fmt.Errorf("A.Contains failed: %w", err)
+	}
+	if !Acontains {
+		return false, nil
+	}
+
+	Bcontains, err := e.B.Contains(ctx, store, el)
+	if err != nil {
+		return false, fmt.Errorf("B.Contains failed: %w", err)
+	}
+
+	if Bcontains {
+		return false, nil
+	}
+
+	return true, nil
+}

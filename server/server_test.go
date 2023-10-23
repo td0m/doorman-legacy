@@ -429,4 +429,85 @@ func TestCheckComputedIntersection(t *testing.T) {
 	})
 }
 
+func TestCheckComputedExclusion(t *testing.T) {
+	ctx := context.Background()
+	cleanup(ctx)
+
+	schema := schema.Schema{
+		Types: []schema.Type{
+			{
+				Name: "resource",
+				Relations: []schema.Relation{
+					{Label: "a"},
+					{Label: "b"},
+					{Label: "c", Computed: schema.Exclusion{A: schema.Relative("a"), B: schema.Relative("b")}},
+				},
+			},
+		},
+	}
+	db := store.NewPostgres(pg)
+	server := NewDoormanServer(schema, db)
+
+	// Cannot access before
+	res, err := server.Check(ctx, &pb.CheckRequest{
+		U:     "resource:banana",
+		Label: "c",
+		V:     "user:alice",
+	})
+	assert.NoError(t, err)
+	assert.Equal(t, false, res.Connected)
+
+	t.Run("False if both connect", func(t *testing.T) {
+		cleanup(ctx)
+
+		tupleA := store.Tuple{U: "resource:banana", Label: "a", V: "user:alice"}
+		err = db.Add(ctx, tupleA)
+		require.NoError(t, err)
+
+		tupleB := store.Tuple{U: "resource:banana", Label: "b", V: "user:alice"}
+		err = db.Add(ctx, tupleB)
+		require.NoError(t, err)
+
+		res, err = server.Check(ctx, &pb.CheckRequest{
+			U:     "resource:banana",
+			Label: "c",
+			V:     "user:alice",
+		})
+		assert.NoError(t, err)
+		assert.Equal(t, false, res.Connected)
+	})
+
+	t.Run("True if only A connects", func(t *testing.T) {
+		cleanup(ctx)
+
+		tupleA := store.Tuple{U: "resource:banana", Label: "a", V: "user:alice"}
+		err = db.Add(ctx, tupleA)
+		require.NoError(t, err)
+
+		res, err = server.Check(ctx, &pb.CheckRequest{
+			U:     "resource:banana",
+			Label: "c",
+			V:     "user:alice",
+		})
+		assert.NoError(t, err)
+		assert.Equal(t, true, res.Connected)
+	})
+
+	t.Run("False if only B connects", func(t *testing.T) {
+		cleanup(ctx)
+
+		tupleB := store.Tuple{U: "resource:banana", Label: "b", V: "user:alice"}
+		err = db.Add(ctx, tupleB)
+		require.NoError(t, err)
+
+		res, err = server.Check(ctx, &pb.CheckRequest{
+			U:     "resource:banana",
+			Label: "c",
+			V:     "user:alice",
+		})
+		assert.NoError(t, err)
+		assert.Equal(t, false, res.Connected)
+	})
+}
+
 // TODO: no cyclical computed
