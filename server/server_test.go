@@ -275,4 +275,81 @@ func TestCheckComputedViaAnotherComputed(t *testing.T) {
 	assert.Equal(t, true, res.Connected)
 }
 
+func TestCheckComputedUnion(t *testing.T) {
+	ctx := context.Background()
+	cleanup(ctx)
+
+	schema := schema.Schema{
+		Types: []schema.Type{
+			{
+				Name: "resource",
+				Relations: []schema.Relation{
+					{Label: "owner"},
+					{Label: "manager"},
+					{Label: "viewer", Computed: schema.Union{schema.Relative("owner"), schema.Relative("manager")}},
+				},
+			},
+		},
+	}
+	db := store.NewPostgres(pg)
+	server := NewDoormanServer(schema, db)
+
+	// Cannot access before
+	res, err := server.Check(ctx, &pb.CheckRequest{
+		U:     "resource:banana",
+		Label: "viewer",
+		V:     "user:alice",
+	})
+	assert.NoError(t, err)
+	assert.Equal(t, false, res.Connected)
+
+	t.Run("True if both connect", func(t *testing.T) {
+		cleanup(ctx)
+
+		tupleA := store.Tuple{
+			U:     "resource:banana",
+			Label: "owner",
+			V:     "user:alice",
+		}
+		err = db.Add(ctx, tupleA)
+		require.NoError(t, err)
+
+		tupleB := store.Tuple{
+			U:     "resource:banana",
+			Label: "manager",
+			V:     "user:alice",
+		}
+		err = db.Add(ctx, tupleB)
+		require.NoError(t, err)
+
+		res, err = server.Check(ctx, &pb.CheckRequest{
+			U:     "resource:banana",
+			Label: "viewer",
+			V:     "user:alice",
+		})
+		assert.NoError(t, err)
+		assert.Equal(t, true, res.Connected)
+	})
+
+	t.Run("True if only one connects", func(t *testing.T) {
+		cleanup(ctx)
+
+		tupleA := store.Tuple{
+			U:     "resource:banana",
+			Label: "owner",
+			V:     "user:alice",
+		}
+		err = db.Add(ctx, tupleA)
+		require.NoError(t, err)
+
+		res, err = server.Check(ctx, &pb.CheckRequest{
+			U:     "resource:banana",
+			Label: "viewer",
+			V:     "user:alice",
+		})
+		assert.NoError(t, err)
+		assert.Equal(t, true, res.Connected)
+	})
+}
+
 // TODO: no cyclical computed
