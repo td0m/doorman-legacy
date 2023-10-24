@@ -58,3 +58,7 @@ func (c Cached) LogSuccessfulCheck(sets []doorman.Set, v doorman.Element) error 
 func NewCached(store Store) Cached {
 	return Cached{store: store, s2s: map[string][]string{}, u2s: map[doorman.Element][]string{}}
 }
+
+func listComputedChangesFromTuple(ctx context.Context, set doorman.Set, v doorman.Element) {
+	panic(3)
+}

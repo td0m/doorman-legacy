@@ -13,6 +13,9 @@ type Schema struct {
 	Types []Type
 }
 
+// no cycles, valid references
+// TODO: func (s Schema) Validate() error {}
+
 func (s Schema) GetRelation(u doorman.Element, relation string) (*Relation, error) {
 	// uTypeDef, ok := s.Types[u.Type()]
 	// if !ok {
