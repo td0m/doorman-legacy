@@ -1,0 +1,53 @@
+syntax = "proto3";
+option go_package = "github.com/td0m/doorman/gen/go";
+
+package doorman;
+
+import "google/api/annotations.proto";
+
+service Doorman {
+	rpc Check(CheckRequest) returns (CheckResponse) {
+		option (google.api.http) = {
+			post: "/check"
+			body: "*"
+		};
+	};
+	rpc Grant(GrantRequest) returns (GrantResponse) {
+		option (google.api.http) = {
+			post: "/grant"
+			body: "*"
+		};
+	};
+	rpc Revoke(RevokeRequest) returns (RevokeResponse) {
+		option (google.api.http) = {
+			post: "/revoke"
+			body: "*"
+		};
+	};
+}
+
+message CheckRequest {
+	string subject = 1;
+	string verb = 2;
+	string object = 3;
+}
+
+message CheckResponse {
+	bool success = 1;
+}
+
+message GrantRequest {
+	string subject = 1;
+	string role = 2;
+	string object = 3;
+}
+
+message GrantResponse {}
+
+message RevokeRequest {
+	string subject = 1;
+	string role = 2;
+	string object = 3;
+}
+
+message RevokeResponse {}
