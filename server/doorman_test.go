@@ -154,3 +154,78 @@ func TestCheckViaGroup(t *testing.T) {
 		require.Equal(t, true, res.Success)
 	})
 }
+
+func TestCheckViaTwoGroups(t *testing.T) {
+	cleanup(conn)
+
+	relations := db.NewRelations()
+	objects := db.NewObjects(conn)
+	roles := db.NewRoles(conn)
+	tuples := db.NewTuples(conn)
+
+	server := NewDoorman(relations, roles, tuples)
+	ctx := context.Background()
+
+	alice := doorman.Object("user:alice")
+	member := doorman.Role{
+		ID:    "member",
+		Verbs: []doorman.Verb{"foo"},
+	}
+	superadmins := doorman.Object("group:superadmins")
+	admins := doorman.Object("group:admins")
+	owner := doorman.Role{
+		ID:    "owner",
+		Verbs: []doorman.Verb{"eat"},
+	}
+	banana := doorman.Object("item:banana")
+
+	require.NoError(t, objects.Add(ctx, alice))
+	require.NoError(t, objects.Add(ctx, superadmins))
+	require.NoError(t, objects.Add(ctx, admins))
+	require.NoError(t, objects.Add(ctx, banana))
+	require.NoError(t, roles.Add(ctx, member))
+	require.NoError(t, roles.Add(ctx, owner))
+
+	t.Run("Failure: Check before granting", func(t *testing.T) {
+		res, err := server.Check(ctx, &pb.CheckRequest{
+			Subject: string(alice),
+			Verb:    "eat",
+			Object:  string(banana),
+		})
+		require.NoError(t, err)
+		require.Equal(t, false, res.Success)
+	})
+
+	t.Run("Grant", func(t *testing.T) {
+		_, err := server.Grant(ctx, &pb.GrantRequest{
+			Subject: string(alice),
+			Role:    member.ID,
+			Object:  string(superadmins),
+		})
+		require.NoError(t, err)
+
+		_, err = server.Grant(ctx, &pb.GrantRequest{
+			Subject: string(admins),
+			Role:    owner.ID,
+			Object:  string(banana),
+		})
+		require.NoError(t, err)
+
+		_, err = server.Grant(ctx, &pb.GrantRequest{
+			Subject: string(superadmins),
+			Role:    member.ID,
+			Object:  string(admins),
+		})
+		require.NoError(t, err)
+	})
+
+	t.Run("Success: Check after granting", func(t *testing.T) {
+		res, err := server.Check(ctx, &pb.CheckRequest{
+			Subject: string(alice),
+			Verb:    "eat",
+			Object:  string(banana),
+		})
+		require.NoError(t, err)
+		require.Equal(t, true, res.Success)
+	})
+}

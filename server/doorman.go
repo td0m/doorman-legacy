@@ -75,8 +75,17 @@ func (d *Doorman) Grant(ctx context.Context, request *pb.GrantRequest) (*pb.Gran
 			})
 		}
 
+		for _, child := range tupleChildren {
+			for _, parent := range tupleParents {
+				newTuples = append(newTuples, doorman.Tuple{
+					Subject:  parent[len(parent)-1].Object,
+					Role:    child[len(child)-1].Role,
+					Object: child[len(child)-1].Object,
+				})
+			}
+		}
+
 		fmt.Println(newTuples)
-		// TODO: connect parents with children??
 	}
 
 	relations, err := doorman.TuplesToRelations(ctx, newTuples, d.roles.Retrieve)
