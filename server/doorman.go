@@ -29,6 +29,7 @@ func (d *Doorman) Check(ctx context.Context, request *pb.CheckRequest) (*pb.Chec
 	if err != nil {
 		return nil, fmt.Errorf("check failed: %w", err)
 	}
+
 	return &pb.CheckResponse{Success: success}, nil
 }
 
@@ -38,12 +39,47 @@ func (d *Doorman) Grant(ctx context.Context, request *pb.GrantRequest) (*pb.Gran
 		Role:    request.Role,
 		Object:  doorman.Object(request.Object),
 	}
-	err := d.tuples.Add(ctx, tuple)
-	if err != nil {
+	if err := d.tuples.Add(ctx, tuple); err != nil {
 		return nil, fmt.Errorf("tuples.Add failed: %w", err)
 	}
 
-	relations, err := doorman.TuplesToRelations(ctx, []doorman.Tuple{tuple}, d.roles.Retrieve)
+	newTuples := []doorman.Tuple{tuple}
+	{
+		tupleChildren, err := d.tuples.ListConnected(ctx, tuple.Object, false)
+		if err != nil {
+			return nil, fmt.Errorf("tuples.ListConnected(obj, false) failed: %w", err)
+		}
+
+		tupleParents, err := d.tuples.ListConnected(ctx, tuple.Subject, true)
+		if err != nil {
+			return nil, fmt.Errorf("tuples.ListConnected(sub, true) failed: %w", err)
+		}
+
+		fmt.Println("tup", tuple, tupleChildren, tupleParents)
+
+		// TODO: filter by those that only go through groups
+
+		for _, child := range tupleChildren {
+			newTuples = append(newTuples, doorman.Tuple{
+				Object:  tuple.Object,
+				Role:    child[len(child)-1].Role,
+				Subject: child[len(child)-1].Object,
+			})
+		}
+
+		for _, parent := range tupleParents {
+			newTuples = append(newTuples, doorman.Tuple{
+				Subject: parent[len(parent)-1].Object,
+				Role:    tuple.Role,
+				Object:  tuple.Object,
+			})
+		}
+
+		fmt.Println(newTuples)
+		// TODO: connect parents with children??
+	}
+
+	relations, err := doorman.TuplesToRelations(ctx, newTuples, d.roles.Retrieve)
 	if err != nil {
 		return nil, fmt.Errorf("TuplesToRelations failed: %w", err)
 	}
