@@ -2,11 +2,15 @@ package db
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/td0m/doorman"
 )
+
+var ErrInvalidRole = errors.New("this role does not exist for the given object type")
 
 type Tuples struct {
 	pool *pgxpool.Pool
@@ -19,6 +23,12 @@ func (t Tuples) Add(ctx context.Context, tuple doorman.Tuple) error {
 	`
 
 	if _, err := t.pool.Exec(ctx, query, tuple.Subject, tuple.Role, tuple.Object); err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) {
+			if pgErr.ConstraintName == "tuples_role_fkey" && pgErr.Code == "23503" {
+				return ErrInvalidRole
+			}
+		}
 		return err
 	}
 	return nil
