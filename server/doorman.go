@@ -36,7 +36,7 @@ func (d *Doorman) Check(ctx context.Context, request *pb.CheckRequest) (*pb.Chec
 func (d *Doorman) Grant(ctx context.Context, request *pb.GrantRequest) (*pb.GrantResponse, error) {
 	tuple := doorman.Tuple{
 		Subject: doorman.Object(request.Subject),
-		Role:    request.Role,
+		Role:    doorman.Object(request.Object).Type() + ":" + request.Role,
 		Object:  doorman.Object(request.Object),
 	}
 	if err := d.tuples.Add(ctx, tuple); err != nil {

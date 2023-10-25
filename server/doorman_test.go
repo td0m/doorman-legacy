@@ -50,7 +50,7 @@ func TestCheckDirect(t *testing.T) {
 
 	alice := doorman.Object("user:alice")
 	member := doorman.Role{
-		ID:    "member",
+		ID:    "group:member",
 		Verbs: []doorman.Verb{"foo"},
 	}
 	admins := doorman.Object("group:admins")
@@ -72,7 +72,7 @@ func TestCheckDirect(t *testing.T) {
 	t.Run("Grant", func(t *testing.T) {
 		_, err := server.Grant(ctx, &pb.GrantRequest{
 			Subject: string(alice),
-			Role:    member.ID,
+			Role:    "member",
 			Object:  string(admins),
 		})
 		require.NoError(t, err)
@@ -102,12 +102,12 @@ func TestCheckViaGroup(t *testing.T) {
 
 	alice := doorman.Object("user:alice")
 	member := doorman.Role{
-		ID:    "member",
+		ID:    "group:member",
 		Verbs: []doorman.Verb{"foo"},
 	}
 	admins := doorman.Object("group:admins")
 	owner := doorman.Role{
-		ID:    "owner",
+		ID:    "item:owner",
 		Verbs: []doorman.Verb{"eat"},
 	}
 	banana := doorman.Object("item:banana")
@@ -131,14 +131,14 @@ func TestCheckViaGroup(t *testing.T) {
 	t.Run("Grant", func(t *testing.T) {
 		_, err := server.Grant(ctx, &pb.GrantRequest{
 			Subject: string(alice),
-			Role:    member.ID,
+			Role:    "member",
 			Object:  string(admins),
 		})
 		require.NoError(t, err)
 
 		_, err = server.Grant(ctx, &pb.GrantRequest{
 			Subject: string(admins),
-			Role:    owner.ID,
+			Role:    "owner",
 			Object:  string(banana),
 		})
 		require.NoError(t, err)
@@ -168,13 +168,13 @@ func TestCheckViaTwoGroups(t *testing.T) {
 
 	alice := doorman.Object("user:alice")
 	member := doorman.Role{
-		ID:    "member",
+		ID:    "group:member",
 		Verbs: []doorman.Verb{"foo"},
 	}
 	superadmins := doorman.Object("group:superadmins")
 	admins := doorman.Object("group:admins")
 	owner := doorman.Role{
-		ID:    "owner",
+		ID:    "item:owner",
 		Verbs: []doorman.Verb{"eat"},
 	}
 	banana := doorman.Object("item:banana")
@@ -199,21 +199,21 @@ func TestCheckViaTwoGroups(t *testing.T) {
 	t.Run("Grant", func(t *testing.T) {
 		_, err := server.Grant(ctx, &pb.GrantRequest{
 			Subject: string(alice),
-			Role:    member.ID,
+			Role:    "member",
 			Object:  string(superadmins),
 		})
 		require.NoError(t, err)
 
 		_, err = server.Grant(ctx, &pb.GrantRequest{
 			Subject: string(admins),
-			Role:    owner.ID,
+			Role:    "owner",
 			Object:  string(banana),
 		})
 		require.NoError(t, err)
 
 		_, err = server.Grant(ctx, &pb.GrantRequest{
 			Subject: string(superadmins),
-			Role:    member.ID,
+			Role:    "member",
 			Object:  string(admins),
 		})
 		require.NoError(t, err)
@@ -243,12 +243,12 @@ func TestCheckViaGroop(t *testing.T) {
 
 	alice := doorman.Object("user:alice")
 	member := doorman.Role{
-		ID:    "member",
+		ID:    "groop:member",
 		Verbs: []doorman.Verb{"foo"},
 	}
 	admins := doorman.Object("groop:admins")
 	owner := doorman.Role{
-		ID:    "owner",
+		ID:    "item:owner",
 		Verbs: []doorman.Verb{"eat"},
 	}
 	banana := doorman.Object("item:banana")
@@ -262,14 +262,14 @@ func TestCheckViaGroop(t *testing.T) {
 	t.Run("Grant", func(t *testing.T) {
 		_, err := server.Grant(ctx, &pb.GrantRequest{
 			Subject: string(alice),
-			Role:    member.ID,
+			Role:    "member",
 			Object:  string(admins),
 		})
 		require.NoError(t, err)
 
 		_, err = server.Grant(ctx, &pb.GrantRequest{
 			Subject: string(admins),
-			Role:    owner.ID,
+			Role:    "owner",
 			Object:  string(banana),
 		})
 		require.NoError(t, err)
