@@ -1,7 +1,5 @@
 package doorman
 
-import "context"
-
 type Tuple struct {
 	Subject Object
 	Role    string
@@ -19,8 +17,3 @@ type Connection struct {
 
 type Path []Connection
 
-type TupleStore interface {
-	Add(ctx context.Context, t Tuple) error
-	Remove(ctx context.Context, t Tuple) error
-	ListConnected(ctx context.Context, subject Object, inverted bool) ([]Path, error)
-}

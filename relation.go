@@ -11,14 +11,6 @@ type Relation struct {
 	Subject Object
 }
 
-type Relations interface {
-	Check(context.Context, Relation) (bool, error)
-	// ListContainingSubject(sub Object) ([]Relation, error)
-
-	Add(context.Context, Relation) error
-	Remove(context.Context, Relation) error
-}
-
 type resolveRole func(ctx context.Context, id string) (*Role, error)
 
 func TuplesToRelations(ctx context.Context, tuples []Tuple, r resolveRole) ([]Relation, error) {
