@@ -45,19 +45,19 @@ func (d *Doorman) Grant(ctx context.Context, request *pb.GrantRequest) (*pb.Gran
 
 	newTuples := []doorman.Tuple{tuple}
 	{
-		tupleChildren, err := d.tuples.ListConnected(ctx, tuple.Object, false)
+		tupleChildren, err := d.tuples.ListConnected(ctx, tuple.Subject, false)
 		if err != nil {
-			return nil, fmt.Errorf("tuples.ListConnected(obj, false) failed: %w", err)
+			return nil, fmt.Errorf("tuples.ListConnected(subj, false) failed: %w", err)
 		}
 
-		tupleParents, err := d.tuples.ListConnected(ctx, tuple.Subject, true)
+		tupleParents, err := d.tuples.ListConnected(ctx, tuple.Object, true)
 		if err != nil {
-			return nil, fmt.Errorf("tuples.ListConnected(sub, true) failed: %w", err)
+			return nil, fmt.Errorf("tuples.ListConnected(obj, true) failed: %w", err)
 		}
 
-		fmt.Println("tup", tuple, tupleChildren, tupleParents)
-
-		// TODO: filter by those that only go through groups
+		// e.g. user:alice -> item:1 -> item:2 should not connect user:alice with item:2
+		tupleChildren = filterConnectionsThroughGroups(tupleChildren)
+		tupleParents = filterConnectionsThroughGroups(tupleParents)
 
 		for _, child := range tupleChildren {
 			newTuples = append(newTuples, doorman.Tuple{
@@ -78,14 +78,12 @@ func (d *Doorman) Grant(ctx context.Context, request *pb.GrantRequest) (*pb.Gran
 		for _, child := range tupleChildren {
 			for _, parent := range tupleParents {
 				newTuples = append(newTuples, doorman.Tuple{
-					Subject:  parent[len(parent)-1].Object,
+					Subject: parent[len(parent)-1].Object,
 					Role:    child[len(child)-1].Role,
-					Object: child[len(child)-1].Object,
+					Object:  child[len(child)-1].Object,
 				})
 			}
 		}
-
-		fmt.Println(newTuples)
 	}
 
 	relations, err := doorman.TuplesToRelations(ctx, newTuples, d.roles.Retrieve)
@@ -108,4 +106,28 @@ func (d *Doorman) Revoke(ctx context.Context, request *pb.RevokeRequest) (*pb.Re
 
 func NewDoorman(relations db.Relations, roles db.Roles, tuples db.Tuples) *Doorman {
 	return &Doorman{relations: relations, roles: roles, tuples: tuples}
+}
+
+func filterConnectionsThroughGroups(paths []doorman.Path) []doorman.Path {
+	filtered := []doorman.Path{}
+	for _, path := range paths {
+		if throughGroupsOnly(path) {
+			filtered = append(filtered, path)
+		}
+	}
+	return filtered
+}
+
+func throughGroupsOnly(path doorman.Path) bool {
+	if len(path) < 1 {
+		return true
+	}
+
+	for _, conn := range path[:len(path)-1] {
+		if conn.Object.Type() != "group" {
+			return false
+		}
+	}
+
+	return true
 }
