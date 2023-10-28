@@ -43,45 +43,63 @@ func (d *Doorman) Grant(ctx context.Context, request *pb.GrantRequest) (*pb.Gran
 		return nil, fmt.Errorf("tuples.Add failed: %w", err)
 	}
 
-	newTuples := []doorman.Tuple{tuple}
+	newTuples := []doorman.TupleWithPath{doorman.TupleWithPath{Tuple: tuple}}
 	{
-		tupleChildren, err := d.tuples.ListConnected(ctx, tuple.Subject, false)
-		if err != nil {
-			return nil, fmt.Errorf("tuples.ListConnected(subj, false) failed: %w", err)
+		var tupleChildren []doorman.Path
+		if tuple.Object.Type() == "group" {
+			var err error
+			tupleChildren, err = d.tuples.ListConnected(ctx, tuple.Object, false)
+			if err != nil {
+				return nil, fmt.Errorf("tuples.ListConnected(subj, false) failed: %w", err)
+			}
+			tupleChildren = filterConnectionsThroughGroups(tupleChildren)
 		}
 
-		tupleParents, err := d.tuples.ListConnected(ctx, tuple.Object, true)
-		if err != nil {
-			return nil, fmt.Errorf("tuples.ListConnected(obj, true) failed: %w", err)
+		var tupleParents []doorman.Path
+		if tuple.Subject.Type() == "group" {
+			var err error
+			tupleParents, err = d.tuples.ListConnected(ctx, tuple.Subject, true)
+			if err != nil {
+				return nil, fmt.Errorf("tuples.ListConnected(obj, true) failed: %w", err)
+			}
+			tupleParents = filterConnectionsThroughGroups(tupleParents)
 		}
-
-		// e.g. user:alice -> item:1 -> item:2 should not connect user:alice with item:2
-		tupleChildren = filterConnectionsThroughGroups(tupleChildren)
-		tupleParents = filterConnectionsThroughGroups(tupleParents)
 
 		for _, child := range tupleChildren {
-			newTuples = append(newTuples, doorman.Tuple{
-				Object:  tuple.Object,
-				Role:    child[len(child)-1].Role,
-				Subject: child[len(child)-1].Object,
-			})
+			t := doorman.TupleWithPath{
+				Tuple: doorman.Tuple{
+					Object:  tuple.Object,
+					Role:    child[len(child)-1].Role,
+					Subject: child[len(child)-1].Object,
+				},
+				Path: child[:len(child)-1],
+			}
+			newTuples = append(newTuples, t)
 		}
 
 		for _, parent := range tupleParents {
-			newTuples = append(newTuples, doorman.Tuple{
-				Subject: parent[len(parent)-1].Object,
-				Role:    tuple.Role,
-				Object:  tuple.Object,
-			})
+			t := doorman.TupleWithPath{
+				Tuple: doorman.Tuple{
+					Subject: parent[len(parent)-1].Object,
+					Role:    tuple.Role,
+					Object:  tuple.Object,
+				},
+				Path: parent[:len(parent)-1],
+			}
+			newTuples = append(newTuples, t)
 		}
 
 		for _, child := range tupleChildren {
 			for _, parent := range tupleParents {
-				newTuples = append(newTuples, doorman.Tuple{
-					Subject: parent[len(parent)-1].Object,
-					Role:    child[len(child)-1].Role,
-					Object:  child[len(child)-1].Object,
-				})
+				t := doorman.TupleWithPath{
+					Tuple: doorman.Tuple{
+						Subject: parent[len(parent)-1].Object,
+						Role:    child[len(child)-1].Role,
+						Object:  child[len(child)-1].Object,
+					},
+					Path: append(parent[:len(parent)-1], child[:len(child)-1]...),
+				}
+				newTuples = append(newTuples, t)
 			}
 		}
 	}
@@ -108,6 +126,7 @@ func NewDoorman(relations db.Relations, roles db.Roles, tuples db.Tuples) *Doorm
 	return &Doorman{relations: relations, roles: roles, tuples: tuples}
 }
 
+// e.g. user:alice -> item:1 -> item:2 should not connect user:alice with item:2
 func filterConnectionsThroughGroups(paths []doorman.Path) []doorman.Path {
 	filtered := []doorman.Path{}
 	for _, path := range paths {

@@ -2,49 +2,53 @@ package db
 
 import (
 	"context"
+	"fmt"
 
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/td0m/doorman"
 )
 
 type Relations struct {
-	// TODO: define a group?
-	group2group   map[group]SetOfGroups
-	subject2group map[doorman.Object]SetOfGroups
+	pool *pgxpool.Pool
 }
 
+// 1m users, 1k posts
+//  -> new post = 1 million new ACLs... that is bad
+//  but we don't need to give them direct access... we do it smart
+//  users access feed, feed access rungways
+
 func (rs Relations) Check(ctx context.Context, r doorman.Relation) (bool, error) {
-	subject2group, ok := rs.subject2group[r.Subject]
-	if !ok {
-		return false, nil
-	}
-	group2group, ok := rs.group2group[group{Object: r.Object, Verb: r.Verb}]
-	if !ok {
-		return false, nil
+	query := `
+		select key
+		from relations
+		where (subject, verb, object) = ($1, $2, $3)
+		limit 1
+	`
+
+	rows, err := rs.pool.Query(ctx, query, r.Subject, r.Verb, r.Object)
+	if err != nil {
+		return false, fmt.Errorf("query failed: %w", err)
 	}
 
-	return subject2group.Intersects(group2group), nil
+	found := false
+	for rows.Next() {
+		_ = rows.Scan()
+		found = true
+	}
+
+	return found, nil
 }
 
 func (rs Relations) Add(ctx context.Context, r doorman.Relation) error {
-	g := group{Object: r.Object, Verb: r.Verb}
+	fmt.Println("add", r.String())
+	query := `
+		insert into relations(subject, verb, object, key)
+		values($1, $2, $3, $4)
+	`
 
-	subject2group, ok := rs.subject2group[r.Subject]
-	if !ok {
-		subject2group = SetOfGroups{}
+	if _, err := rs.pool.Exec(ctx, query, r.Subject, r.Verb, r.Object, r.Key); err != nil {
+		return fmt.Errorf("exec failed: %w", err)
 	}
-	subject2group[g] = true
-
-	group2group, ok := rs.group2group[g]
-	if !ok {
-		group2group = SetOfGroups{}
-	}
-	group2group[g] = true // connnect to self
-
-	// TODO: also take care of g2g
-
-	// Save
-	rs.subject2group[r.Subject] = subject2group
-	rs.group2group[g] = group2group
 
 	return nil
 }
@@ -53,25 +57,6 @@ func (rs Relations) Remove(ctx context.Context, r doorman.Relation) error {
 	panic("fak")
 }
 
-func NewRelations() Relations {
-	return Relations{
-		group2group:   map[group]SetOfGroups{},
-		subject2group: map[doorman.Object]SetOfGroups{},
-	}
-}
-
-type group struct {
-	Object doorman.Object
-	Verb   doorman.Verb
-}
-
-type SetOfGroups map[group]bool
-
-func (a SetOfGroups) Intersects(b SetOfGroups) bool {
-	for b, bconn := range b {
-		if bconn && a[b] {
-			return true
-		}
-	}
-	return false
+func NewRelations(pool *pgxpool.Pool) Relations {
+	return Relations{pool: pool}
 }
