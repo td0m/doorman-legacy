@@ -695,12 +695,23 @@ func TestCheckRevoke(t *testing.T) {
 		require.Equal(t, true, res.Success)
 	})
 
-	_, err = server.Revoke(ctx, &pb.RevokeRequest{
-		Subject: string(alice),
-		Role:    "owner",
-		Object:  string(banana),
+	t.Run("Successful revoke of existing role", func(t *testing.T) {
+		_, err = server.Revoke(ctx, &pb.RevokeRequest{
+			Subject: string(alice),
+			Role:    "owner",
+			Object:  string(banana),
+		})
+		require.NoError(t, err)
 	})
-	require.NoError(t, err)
+
+	t.Run("Faiure revoking same role twice (non-idempotent)", func(t *testing.T) {
+		_, err = server.Revoke(ctx, &pb.RevokeRequest{
+			Subject: string(alice),
+			Role:    "owner",
+			Object:  string(banana),
+		})
+		require.ErrorIs(t, err, db.ErrTupleNotFound)
+	})
 
 	t.Run("Failure: Check after revoking", func(t *testing.T) {
 		res, err := server.Check(ctx, &pb.CheckRequest{
@@ -710,6 +721,77 @@ func TestCheckRevoke(t *testing.T) {
 		})
 		require.NoError(t, err)
 		require.Equal(t, false, res.Success)
+	})
+}
+
+func TestCheckRevokeOneOfTwo(t *testing.T) {
+	cleanup(conn)
+
+	relations := db.NewRelations(conn)
+	objects := db.NewObjects(conn)
+	roles := db.NewRoles(conn)
+	tuples := db.NewTuples(conn)
+
+	server := NewDoorman(relations, roles, tuples)
+	ctx := context.Background()
+
+	alice := doorman.Object("user:alice")
+	owner := doorman.Role{
+		ID:    "item:owner",
+		Verbs: []doorman.Verb{"eat"},
+	}
+	eater := doorman.Role{
+		ID:    "item:eater",
+		Verbs: []doorman.Verb{"eat"},
+	}
+	banana := doorman.Object("item:banana")
+
+	require.NoError(t, objects.Add(ctx, alice))
+	require.NoError(t, objects.Add(ctx, banana))
+	require.NoError(t, roles.Add(ctx, owner))
+	require.NoError(t, roles.Add(ctx, eater))
+
+	_, err := server.Grant(ctx, &pb.GrantRequest{
+		Subject: string(alice),
+		Role:    "owner",
+		Object:  string(banana),
+	})
+	require.NoError(t, err)
+
+	_, err = server.Grant(ctx, &pb.GrantRequest{
+		Subject: string(alice),
+		Role:    "eater",
+		Object:  string(banana),
+	})
+	require.NoError(t, err)
+
+	t.Run("Success: Check before revoking", func(t *testing.T) {
+		res, err := server.Check(ctx, &pb.CheckRequest{
+			Subject: string(alice),
+			Verb:    "eat",
+			Object:  string(banana),
+		})
+		require.NoError(t, err)
+		require.Equal(t, true, res.Success)
+	})
+
+	t.Run("Successful revoke of one of two roles", func(t *testing.T) {
+		_, err = server.Revoke(ctx, &pb.RevokeRequest{
+			Subject: string(alice),
+			Role:    "eater",
+			Object:  string(banana),
+		})
+		require.NoError(t, err)
+	})
+
+	t.Run("Success: Check after revoking", func(t *testing.T) {
+		res, err := server.Check(ctx, &pb.CheckRequest{
+			Subject: string(alice),
+			Verb:    "eat",
+			Object:  string(banana),
+		})
+		require.NoError(t, err)
+		require.Equal(t, true, res.Success)
 	})
 }
 

@@ -39,6 +39,7 @@ func TuplesToRelations(ctx context.Context, tuples []TupleWithPath, r resolveRol
 			for _, c := range t.Path {
 				path = append(path, c.Role, string(c.Object))
 			}
+			path = append(path, t.Role)
 			relations = append(relations, Relation{
 				Subject: t.Subject,
 				Verb:    verb,
