@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/td0m/doorman"
 )
@@ -36,17 +37,21 @@ func (r Roles) Retrieve(ctx context.Context, id string) (*doorman.Role, error) {
 
 	err := r.pool.QueryRow(ctx, query, id).Scan(&role.Verbs)
 	if err != nil {
+		if err == pgx.ErrNoRows {
+			return nil, ErrInvalidRole
+		}
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
 
 	return &role, nil
 }
 
-func (r Roles) Update(ctx context.Context, role *doorman.Role) (error) {
+func (r Roles) Upsert(ctx context.Context, role *doorman.Role) error {
 	query := `
-		update roles
-		set verbs = $2
-		where id = $1
+		insert into roles(id, verbs)
+		values($1, $2)
+		on conflict(id) do update
+			set verbs = $2
 	`
 
 	if _, err := r.pool.Exec(ctx, query, role.ID, role.Verbs); err != nil {

@@ -842,7 +842,7 @@ func TestCheckUpdateRole(t *testing.T) {
 		assert.Equal(t, false, res.Success)
 	})
 
-	_, err = server.UpdateRole(ctx, &pb.UpdateRoleRequest{
+	_, err = server.UpsertRole(ctx, &pb.UpsertRoleRequest{
 		Id:    owner.ID,
 		Verbs: []string{"drink"},
 	})
@@ -864,5 +864,47 @@ func TestCheckUpdateRole(t *testing.T) {
 		})
 		assert.NoError(t, err)
 		assert.Equal(t, true, res.Success)
+	})
+}
+
+func TestCheckUpsertRoleCreate(t *testing.T) {
+	cleanup(conn)
+
+	relations := db.NewRelations(conn)
+	objects := db.NewObjects(conn)
+	roles := db.NewRoles(conn)
+	tuples := db.NewTuples(conn)
+
+	server := NewDoorman(relations, roles, tuples)
+	ctx := context.Background()
+
+	alice := doorman.Object("user:alice")
+	banana := doorman.Object("item:banana")
+
+	require.NoError(t, objects.Add(ctx, alice))
+	require.NoError(t, objects.Add(ctx, banana))
+
+	t.Run("Failed to grant before role is created", func(t *testing.T) {
+		_, err := server.Grant(ctx, &pb.GrantRequest{
+			Subject: string(alice),
+			Role:    "owner",
+			Object:  string(banana),
+		})
+		require.Error(t, err)
+	})
+
+	_, err := server.UpsertRole(ctx, &pb.UpsertRoleRequest{
+		Id:    "item:owner",
+		Verbs: []string{"drink"},
+	})
+	require.NoError(t, err)
+
+	t.Run("Success grant after role is created", func(t *testing.T) {
+		_, err := server.Grant(ctx, &pb.GrantRequest{
+			Subject: string(alice),
+			Role:    "owner",
+			Object:  string(banana),
+		})
+		require.NoError(t, err)
 	})
 }

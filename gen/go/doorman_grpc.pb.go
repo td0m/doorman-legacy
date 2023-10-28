@@ -22,7 +22,7 @@ const (
 	Doorman_Check_FullMethodName      = "/doorman.Doorman/Check"
 	Doorman_Grant_FullMethodName      = "/doorman.Doorman/Grant"
 	Doorman_Revoke_FullMethodName     = "/doorman.Doorman/Revoke"
-	Doorman_UpdateRole_FullMethodName = "/doorman.Doorman/UpdateRole"
+	Doorman_UpsertRole_FullMethodName = "/doorman.Doorman/UpsertRole"
 )
 
 // DoormanClient is the client API for Doorman service.
@@ -32,7 +32,7 @@ type DoormanClient interface {
 	Check(ctx context.Context, in *CheckRequest, opts ...grpc.CallOption) (*CheckResponse, error)
 	Grant(ctx context.Context, in *GrantRequest, opts ...grpc.CallOption) (*GrantResponse, error)
 	Revoke(ctx context.Context, in *RevokeRequest, opts ...grpc.CallOption) (*RevokeResponse, error)
-	UpdateRole(ctx context.Context, in *UpdateRoleRequest, opts ...grpc.CallOption) (*Role, error)
+	UpsertRole(ctx context.Context, in *UpsertRoleRequest, opts ...grpc.CallOption) (*Role, error)
 }
 
 type doormanClient struct {
@@ -70,9 +70,9 @@ func (c *doormanClient) Revoke(ctx context.Context, in *RevokeRequest, opts ...g
 	return out, nil
 }
 
-func (c *doormanClient) UpdateRole(ctx context.Context, in *UpdateRoleRequest, opts ...grpc.CallOption) (*Role, error) {
+func (c *doormanClient) UpsertRole(ctx context.Context, in *UpsertRoleRequest, opts ...grpc.CallOption) (*Role, error) {
 	out := new(Role)
-	err := c.cc.Invoke(ctx, Doorman_UpdateRole_FullMethodName, in, out, opts...)
+	err := c.cc.Invoke(ctx, Doorman_UpsertRole_FullMethodName, in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -86,7 +86,7 @@ type DoormanServer interface {
 	Check(context.Context, *CheckRequest) (*CheckResponse, error)
 	Grant(context.Context, *GrantRequest) (*GrantResponse, error)
 	Revoke(context.Context, *RevokeRequest) (*RevokeResponse, error)
-	UpdateRole(context.Context, *UpdateRoleRequest) (*Role, error)
+	UpsertRole(context.Context, *UpsertRoleRequest) (*Role, error)
 	mustEmbedUnimplementedDoormanServer()
 }
 
@@ -103,8 +103,8 @@ func (UnimplementedDoormanServer) Grant(context.Context, *GrantRequest) (*GrantR
 func (UnimplementedDoormanServer) Revoke(context.Context, *RevokeRequest) (*RevokeResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Revoke not implemented")
 }
-func (UnimplementedDoormanServer) UpdateRole(context.Context, *UpdateRoleRequest) (*Role, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method UpdateRole not implemented")
+func (UnimplementedDoormanServer) UpsertRole(context.Context, *UpsertRoleRequest) (*Role, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UpsertRole not implemented")
 }
 func (UnimplementedDoormanServer) mustEmbedUnimplementedDoormanServer() {}
 
@@ -173,20 +173,20 @@ func _Doorman_Revoke_Handler(srv interface{}, ctx context.Context, dec func(inte
 	return interceptor(ctx, in, info, handler)
 }
 
-func _Doorman_UpdateRole_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(UpdateRoleRequest)
+func _Doorman_UpsertRole_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpsertRoleRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(DoormanServer).UpdateRole(ctx, in)
+		return srv.(DoormanServer).UpsertRole(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: Doorman_UpdateRole_FullMethodName,
+		FullMethod: Doorman_UpsertRole_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(DoormanServer).UpdateRole(ctx, req.(*UpdateRoleRequest))
+		return srv.(DoormanServer).UpsertRole(ctx, req.(*UpsertRoleRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -211,8 +211,8 @@ var Doorman_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _Doorman_Revoke_Handler,
 		},
 		{
-			MethodName: "UpdateRole",
-			Handler:    _Doorman_UpdateRole_Handler,
+			MethodName: "UpsertRole",
+			Handler:    _Doorman_UpsertRole_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

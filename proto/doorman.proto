@@ -24,7 +24,7 @@ service Doorman {
 			body: "*"
 		};
 	};
-	rpc UpdateRole(UpdateRoleRequest) returns (Role) {
+	rpc UpsertRole(UpsertRoleRequest) returns (Role) {
 		option (google.api.http) = {
 			put: "/roles/{id}"
 			body: "*"
@@ -63,7 +63,7 @@ message RevokeRequest {
 
 message RevokeResponse {}
 
-message UpdateRoleRequest {
+message UpsertRoleRequest {
 	string id = 1;
 	repeated string verbs = 2;
 }
