@@ -3,18 +3,17 @@ package doorman
 import (
 	"context"
 	"fmt"
-	"strings"
 )
 
 type Relation struct {
 	Object  Object
 	Verb    Verb
 	Subject Object
-	Key     string
+	Path    []string
 }
 
 func (r Relation) String() string {
-	return fmt.Sprintf("(%s, %s, %s) via '%s'", r.Subject, r.Verb, r.Object, r.Key)
+	return fmt.Sprintf("(%s, %s, %s) via '%s'", r.Subject, r.Verb, r.Object, r.Path)
 }
 
 type resolveRole func(ctx context.Context, id string) (*Role, error)
@@ -36,15 +35,15 @@ func TuplesToRelations(ctx context.Context, tuples []TupleWithPath, r resolveRol
 	relations := []Relation{}
 	for _, t := range tuples {
 		for _, verb := range uniqueRoles[t.Role].Verbs {
-			s := []string{}
+			path := []string{}
 			for _, c := range t.Path {
-				s = append(s, ">"+c.Role+">"+string(c.Object))
+				path = append(path, c.Role, string(c.Object))
 			}
 			relations = append(relations, Relation{
 				Subject: t.Subject,
 				Verb:    verb,
 				Object:  t.Object,
-				Key:     strings.Join(s, ", "),
+				Path:    path,
 			})
 		}
 	}

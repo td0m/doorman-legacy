@@ -19,7 +19,7 @@ type Relations struct {
 
 func (rs Relations) Check(ctx context.Context, r doorman.Relation) (bool, error) {
 	query := `
-		select key
+		select path
 		from relations
 		where (subject, verb, object) = ($1, $2, $3)
 		limit 1
@@ -44,12 +44,12 @@ func (rs Relations) Add(ctx context.Context, r doorman.Relation) error {
 	// why on conflict? remove it and run the parallel test
 	// alternative? use a locking tx and read tuples then...
 	query := `
-		insert into relations(subject, verb, object, key)
+		insert into relations(subject, verb, object, path)
 		values($1, $2, $3, $4)
 		on conflict do nothing
 	`
 
-	if _, err := rs.pool.Exec(ctx, query, r.Subject, r.Verb, r.Object, r.Key); err != nil {
+	if _, err := rs.pool.Exec(ctx, query, r.Subject, r.Verb, r.Object, r.Path); err != nil {
 		return fmt.Errorf("exec failed: %w", err)
 	}
 

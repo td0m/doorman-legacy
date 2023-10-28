@@ -29,9 +29,9 @@ create unlogged table relations(
   object text not null,
 
   -- needed for removing dependants
-  key text not null,
+  path text[] not null,
 
-  primary key (subject, verb, object, key),
+  primary key (subject, verb, object, path),
   constraint "relations_fkey_subject" foreign key (subject) references objects(id) on delete cascade,
   constraint "relations_fkey_object" foreign key (object) references objects(id) on delete cascade
 );
