@@ -82,7 +82,52 @@ func (d *Doorman) Revoke(ctx context.Context, request *pb.RevokeRequest) (*pb.Re
 	return &pb.RevokeResponse{}, nil
 }
 
+func (d *Doorman) UpdateRole(ctx context.Context, request *pb.UpdateRoleRequest) (*pb.Role, error) {
+	role, err := d.roles.Retrieve(ctx, request.Id)
+	if err != nil {
+		return nil, fmt.Errorf("db.Retrieve failed: %w", err)
+	}
+
+	subjects, err := d.tuples.ListTuplesForRole(ctx, role.ID)
+	if err != nil {
+		return nil, fmt.Errorf("ListTuplesForRole failed: %w", err)
+	}
+
+	for _, t := range subjects {
+		_, err := d.Revoke(ctx, &pb.RevokeRequest{
+			Subject: string(t.Subject),
+			Role:    doorman.Object(role.ID).Value(),
+			Object:  string(t.Object),
+		})
+		if err != nil {
+			return nil, fmt.Errorf("revoke failed for %s: %w", t, err)
+		}
+	}
+
+	role.Verbs = []doorman.Verb{}
+	for _, v := range request.Verbs {
+		role.Verbs = append(role.Verbs, doorman.Verb(v))
+	}
+
+	// If this fails all grant requests will fail...
+	if err := d.roles.Update(ctx, role); err != nil {
+		return nil, fmt.Errorf("update failed: %w", err)
+	}
+
+	for _, t := range subjects {
+		_, err := d.Grant(ctx, &pb.GrantRequest{
+			Subject: string(t.Subject),
+			Role:    doorman.Object(role.ID).Value(),
+			Object:  string(t.Object),
+		})
+		if err != nil {
+			return nil, fmt.Errorf("grant failed: %w", err)
+		}
+	}
+
+	return &pb.Role{}, nil
+}
+
 func NewDoorman(relations db.Relations, roles db.Roles, tuples db.Tuples) *Doorman {
 	return &Doorman{relations: relations, roles: roles, tuples: tuples}
 }
-

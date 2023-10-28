@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/td0m/doorman"
 	"github.com/td0m/doorman/db"
@@ -712,3 +713,74 @@ func TestCheckRevoke(t *testing.T) {
 	})
 }
 
+func TestCheckUpdateRole(t *testing.T) {
+	cleanup(conn)
+
+	relations := db.NewRelations(conn)
+	objects := db.NewObjects(conn)
+	roles := db.NewRoles(conn)
+	tuples := db.NewTuples(conn)
+
+	server := NewDoorman(relations, roles, tuples)
+	ctx := context.Background()
+
+	alice := doorman.Object("user:alice")
+	owner := doorman.Role{
+		ID:    "item:owner",
+		Verbs: []doorman.Verb{"eat"},
+	}
+	banana := doorman.Object("item:banana")
+
+	require.NoError(t, objects.Add(ctx, alice))
+	require.NoError(t, objects.Add(ctx, banana))
+	require.NoError(t, roles.Add(ctx, owner))
+
+	_, err := server.Grant(ctx, &pb.GrantRequest{
+		Subject: string(alice),
+		Role:    "owner",
+		Object:  string(banana),
+	})
+	require.NoError(t, err)
+
+	t.Run("Check before revoking", func(t *testing.T) {
+		res, err := server.Check(ctx, &pb.CheckRequest{
+			Subject: string(alice),
+			Verb:    "eat",
+			Object:  string(banana),
+		})
+		assert.NoError(t, err)
+		assert.Equal(t, true, res.Success)
+
+		res, err = server.Check(ctx, &pb.CheckRequest{
+			Subject: string(alice),
+			Verb:    "drink",
+			Object:  string(banana),
+		})
+		assert.NoError(t, err)
+		assert.Equal(t, false, res.Success)
+	})
+
+	_, err = server.UpdateRole(ctx, &pb.UpdateRoleRequest{
+		Id:    owner.ID,
+		Verbs: []string{"drink"},
+	})
+	require.NoError(t, err)
+
+	t.Run("Check after revoking", func(t *testing.T) {
+		res, err := server.Check(ctx, &pb.CheckRequest{
+			Subject: string(alice),
+			Verb:    "eat",
+			Object:  string(banana),
+		})
+		assert.NoError(t, err)
+		assert.Equal(t, false, res.Success)
+
+		res, err = server.Check(ctx, &pb.CheckRequest{
+			Subject: string(alice),
+			Verb:    "drink",
+			Object:  string(banana),
+		})
+		assert.NoError(t, err)
+		assert.Equal(t, true, res.Success)
+	})
+}
