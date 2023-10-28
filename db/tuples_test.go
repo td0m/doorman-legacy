@@ -61,7 +61,7 @@ func TestTuplesCreate(t *testing.T) {
 
 	t.Run("Success creating tuple between existing items", func(t *testing.T) {
 		tuple := doorman.NewTuple(manisha, member.ID, admins)
-		err := tuples.Add(ctx, tuple)
+		_, err := tuples.Add(ctx, tuple)
 		require.NoError(t, err)
 	})
 }
@@ -81,7 +81,7 @@ func TestTuplesRemove(t *testing.T) {
 	admins := doorman.Object("group:admins")
 
 	t.Run("Fails if does not exist", func(t *testing.T) {
-		err := tuples.Remove(ctx, doorman.NewTuple(alice, member.ID, admins))
+		_, err := tuples.Remove(ctx, doorman.NewTuple(alice, member.ID, admins))
 		assert.Error(t, err)
 	})
 
@@ -92,10 +92,11 @@ func TestTuplesRemove(t *testing.T) {
 
 	// Create tuple
 	tuple := doorman.NewTuple(alice, member.ID, admins)
-	require.NoError(t, tuples.Add(ctx, tuple))
+	_, err := tuples.Add(ctx, tuple)
+	require.NoError(t, err)
 
 	t.Run("Fails if does not exist", func(t *testing.T) {
-		err := tuples.Remove(ctx, tuple)
+		_, err := tuples.Remove(ctx, tuple)
 		assert.NoError(t, err)
 	})
 }
@@ -126,10 +127,14 @@ func TestTuplesListConnected(t *testing.T) {
 	require.NoError(t, roles.Add(ctx, member))
 
 	// Create tuples
-	require.NoError(t, tuples.Add(ctx, doorman.NewTuple(alice, member.ID, superadmins)))
-	require.NoError(t, tuples.Add(ctx, doorman.NewTuple(cia, member.ID, superadmins)))
-	require.NoError(t, tuples.Add(ctx, doorman.NewTuple(superadmins, member.ID, admins)))
-	require.NoError(t, tuples.Add(ctx, doorman.NewTuple(admins, member.ID, users)))
+	_, err := tuples.Add(ctx, doorman.NewTuple(alice, member.ID, superadmins))
+	require.NoError(t, err)
+	_, err = tuples.Add(ctx, doorman.NewTuple(cia, member.ID, superadmins))
+	require.NoError(t, err)
+	_, err = tuples.Add(ctx, doorman.NewTuple(superadmins, member.ID, admins))
+	require.NoError(t, err)
+	_, err = tuples.Add(ctx, doorman.NewTuple(admins, member.ID, users))
+	require.NoError(t, err)
 
 	t.Run("ListConnected(alice, false)", func(t *testing.T) {
 		paths, err := tuples.ListConnected(ctx, alice, false)
