@@ -22,6 +22,7 @@ func cleanup(conn *pgxpool.Pool) {
 		delete from roles;
 		delete from objects;
 		delete from relations;
+		delete from changes;
 	`)
 
 	if err != nil {
@@ -43,12 +44,13 @@ func TestMain(m *testing.M) {
 func TestCheckDirect(t *testing.T) {
 	cleanup(conn)
 
-	relations := db.NewRelations(conn)
+	changes := db.NewChanges(conn)
 	objects := db.NewObjects(conn)
+	relations := db.NewRelations(conn)
 	roles := db.NewRoles(conn)
 	tuples := db.NewTuples(conn)
 
-	server := NewDoorman(relations, roles, tuples)
+	server := NewDoorman(changes, relations, roles, tuples)
 	ctx := context.Background()
 
 	alice := doorman.Object("user:alice")
@@ -95,12 +97,13 @@ func TestCheckDirect(t *testing.T) {
 func TestCheckViaGroup(t *testing.T) {
 	cleanup(conn)
 
-	relations := db.NewRelations(conn)
+	changes := db.NewChanges(conn)
 	objects := db.NewObjects(conn)
+	relations := db.NewRelations(conn)
 	roles := db.NewRoles(conn)
 	tuples := db.NewTuples(conn)
 
-	server := NewDoorman(relations, roles, tuples)
+	server := NewDoorman(changes, relations, roles, tuples)
 	ctx := context.Background()
 
 	alice := doorman.Object("user:alice")
@@ -161,12 +164,13 @@ func TestCheckViaGroup(t *testing.T) {
 func TestCheckViaTwoGroups(t *testing.T) {
 	cleanup(conn)
 
-	relations := db.NewRelations(conn)
+	changes := db.NewChanges(conn)
 	objects := db.NewObjects(conn)
+	relations := db.NewRelations(conn)
 	roles := db.NewRoles(conn)
 	tuples := db.NewTuples(conn)
 
-	server := NewDoorman(relations, roles, tuples)
+	server := NewDoorman(changes, relations, roles, tuples)
 	ctx := context.Background()
 
 	alice := doorman.Object("user:alice")
@@ -236,12 +240,13 @@ func TestCheckViaTwoGroups(t *testing.T) {
 func TestCheckViaThreeGroups(t *testing.T) {
 	cleanup(conn)
 
-	relations := db.NewRelations(conn)
+	changes := db.NewChanges(conn)
 	objects := db.NewObjects(conn)
+	relations := db.NewRelations(conn)
 	roles := db.NewRoles(conn)
 	tuples := db.NewTuples(conn)
 
-	server := NewDoorman(relations, roles, tuples)
+	server := NewDoorman(changes, relations, roles, tuples)
 	ctx := context.Background()
 
 	alice := doorman.Object("user:alice")
@@ -321,12 +326,13 @@ func TestCheckViaThreeGroups(t *testing.T) {
 func TestCheckViaThreeGroupsGrantedInParallel(t *testing.T) {
 	cleanup(conn)
 
-	relations := db.NewRelations(conn)
+	changes := db.NewChanges(conn)
 	objects := db.NewObjects(conn)
+	relations := db.NewRelations(conn)
 	roles := db.NewRoles(conn)
 	tuples := db.NewTuples(conn)
 
-	server := NewDoorman(relations, roles, tuples)
+	server := NewDoorman(changes, relations, roles, tuples)
 	ctx := context.Background()
 
 	alice := doorman.Object("user:alice")
@@ -417,12 +423,13 @@ func TestCheckViaThreeGroupsGrantedInParallel(t *testing.T) {
 func TestCheckViaGroop(t *testing.T) {
 	cleanup(conn)
 
-	relations := db.NewRelations(conn)
+	changes := db.NewChanges(conn)
 	objects := db.NewObjects(conn)
+	relations := db.NewRelations(conn)
 	roles := db.NewRoles(conn)
 	tuples := db.NewTuples(conn)
 
-	server := NewDoorman(relations, roles, tuples)
+	server := NewDoorman(changes, relations, roles, tuples)
 	ctx := context.Background()
 
 	alice := doorman.Object("user:alice")
@@ -483,12 +490,13 @@ func TestCheckViaGroop(t *testing.T) {
 func TestCheckViaGroupAndGroop(t *testing.T) {
 	cleanup(conn)
 
-	relations := db.NewRelations(conn)
+	changes := db.NewChanges(conn)
 	objects := db.NewObjects(conn)
+	relations := db.NewRelations(conn)
 	roles := db.NewRoles(conn)
 	tuples := db.NewTuples(conn)
 
-	server := NewDoorman(relations, roles, tuples)
+	server := NewDoorman(changes, relations, roles, tuples)
 	ctx := context.Background()
 
 	alice := doorman.Object("user:alice")
@@ -558,12 +566,13 @@ func TestCheckViaGroupAndGroop(t *testing.T) {
 func TestConnectingToSelfFails(t *testing.T) {
 	cleanup(conn)
 
-	relations := db.NewRelations(conn)
+	changes := db.NewChanges(conn)
 	objects := db.NewObjects(conn)
+	relations := db.NewRelations(conn)
 	roles := db.NewRoles(conn)
 	tuples := db.NewTuples(conn)
 
-	server := NewDoorman(relations, roles, tuples)
+	server := NewDoorman(changes, relations, roles, tuples)
 	ctx := context.Background()
 
 	groupMember := doorman.Role{ID: "group:member", Verbs: []doorman.Verb{"foo"}}
@@ -608,12 +617,13 @@ func TestConnectingToSelfFails(t *testing.T) {
 func TestConnectingToSelfIndirectlyInParallelFails(t *testing.T) {
 	cleanup(conn)
 
-	relations := db.NewRelations(conn)
+	changes := db.NewChanges(conn)
 	objects := db.NewObjects(conn)
+	relations := db.NewRelations(conn)
 	roles := db.NewRoles(conn)
 	tuples := db.NewTuples(conn)
 
-	server := NewDoorman(relations, roles, tuples)
+	server := NewDoorman(changes, relations, roles, tuples)
 	ctx := context.Background()
 
 	groupMember := doorman.Role{ID: "group:member", Verbs: []doorman.Verb{"foo"}}
@@ -659,12 +669,13 @@ func TestConnectingToSelfIndirectlyInParallelFails(t *testing.T) {
 func TestCheckRevoke(t *testing.T) {
 	cleanup(conn)
 
-	relations := db.NewRelations(conn)
+	changes := db.NewChanges(conn)
 	objects := db.NewObjects(conn)
+	relations := db.NewRelations(conn)
 	roles := db.NewRoles(conn)
 	tuples := db.NewTuples(conn)
 
-	server := NewDoorman(relations, roles, tuples)
+	server := NewDoorman(changes, relations, roles, tuples)
 	ctx := context.Background()
 
 	alice := doorman.Object("user:alice")
@@ -727,12 +738,13 @@ func TestCheckRevoke(t *testing.T) {
 func TestCheckRevokeOneOfTwo(t *testing.T) {
 	cleanup(conn)
 
-	relations := db.NewRelations(conn)
+	changes := db.NewChanges(conn)
 	objects := db.NewObjects(conn)
+	relations := db.NewRelations(conn)
 	roles := db.NewRoles(conn)
 	tuples := db.NewTuples(conn)
 
-	server := NewDoorman(relations, roles, tuples)
+	server := NewDoorman(changes, relations, roles, tuples)
 	ctx := context.Background()
 
 	alice := doorman.Object("user:alice")
@@ -798,12 +810,13 @@ func TestCheckRevokeOneOfTwo(t *testing.T) {
 func TestCheckUpdateRole(t *testing.T) {
 	cleanup(conn)
 
-	relations := db.NewRelations(conn)
+	changes := db.NewChanges(conn)
 	objects := db.NewObjects(conn)
+	relations := db.NewRelations(conn)
 	roles := db.NewRoles(conn)
 	tuples := db.NewTuples(conn)
 
-	server := NewDoorman(relations, roles, tuples)
+	server := NewDoorman(changes, relations, roles, tuples)
 	ctx := context.Background()
 
 	alice := doorman.Object("user:alice")
@@ -870,12 +883,13 @@ func TestCheckUpdateRole(t *testing.T) {
 func TestCheckUpsertRoleCreate(t *testing.T) {
 	cleanup(conn)
 
-	relations := db.NewRelations(conn)
+	changes := db.NewChanges(conn)
 	objects := db.NewObjects(conn)
+	relations := db.NewRelations(conn)
 	roles := db.NewRoles(conn)
 	tuples := db.NewTuples(conn)
 
-	server := NewDoorman(relations, roles, tuples)
+	server := NewDoorman(changes, relations, roles, tuples)
 	ctx := context.Background()
 
 	alice := doorman.Object("user:alice")
@@ -912,12 +926,13 @@ func TestCheckUpsertRoleCreate(t *testing.T) {
 func TestRemoveRole(t *testing.T) {
 	cleanup(conn)
 
+	changes := db.NewChanges(conn)
 	relations := db.NewRelations(conn)
 	objects := db.NewObjects(conn)
 	roles := db.NewRoles(conn)
 	tuples := db.NewTuples(conn)
 
-	server := NewDoorman(relations, roles, tuples)
+	server := NewDoorman(changes, relations, roles, tuples)
 	ctx := context.Background()
 
 	alice := doorman.Object("user:alice")

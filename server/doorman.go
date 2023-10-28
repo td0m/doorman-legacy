@@ -14,6 +14,7 @@ type Doorman struct {
 	*pb.UnimplementedDoormanServer
 
 	relations db.Relations
+	changes   db.Changes
 	objects   db.Objects
 	roles     db.Roles
 	tuples    db.Tuples
@@ -164,6 +165,51 @@ func (d *Doorman) UpsertRole(ctx context.Context, request *pb.UpsertRoleRequest)
 	return &pb.Role{}, nil
 }
 
-func NewDoorman(relations db.Relations, roles db.Roles, tuples db.Tuples) *Doorman {
-	return &Doorman{relations: relations, roles: roles, tuples: tuples}
+func (d *Doorman) ListRelations(ctx context.Context, request *pb.ListRelationsRequest) (*pb.ListRelationsResponse, error) {
+	filter := db.RelationFilter{Subject: &request.Subject, Verb: request.Verb}
+	relations, err := d.relations.List(ctx, filter)
+	if err != nil {
+		return nil, fmt.Errorf("db failed: %w", err)
+	}
+
+	items := make([]*pb.Relation, len(relations))
+	for i, r := range relations {
+		items[i] = mapRelationToPb(r)
+	}
+
+	return &pb.ListRelationsResponse{
+		Items: items,
+	}, nil
+}
+
+func (d *Doorman) Changes(ctx context.Context, request *pb.ChangesRequest) (*pb.ChangesResponse, error) {
+	changes, err := d.changes.List(ctx, db.ChangeFilter{PaginationToken: request.PaginationToken})
+	if err != nil {
+		return nil, fmt.Errorf("db failed: %w", err)
+	}
+	res := &pb.ChangesResponse{
+		Items: make([]*pb.Change, len(changes)),
+	}
+	for i, v := range changes {
+		res.Items[i] = mapChangeToPb(v)
+	}
+	return res, nil
+}
+
+func mapRelationToPb(r doorman.Relation) *pb.Relation {
+	return &pb.Relation{
+		Subject: string(r.Subject),
+		Verb:    string(r.Verb),
+		Object:  string(r.Object),
+	}
+}
+
+func mapChangeToPb(c doorman.Change) *pb.Change {
+	return &pb.Change{
+		Type: c.Type,
+	}
+}
+
+func NewDoorman(changes db.Changes, relations db.Relations, roles db.Roles, tuples db.Tuples) *Doorman {
+	return &Doorman{changes: changes, relations: relations, roles: roles, tuples: tuples}
 }

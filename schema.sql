@@ -36,3 +36,9 @@ create unlogged table relations(
   constraint "relations_fkey_object" foreign key (object) references objects(id) on delete cascade
 );
 
+create table changes(
+  id text primary key,
+  type text not null,
+  payload jsonb not null,
+  created_at timestamptz not null default now()
+);

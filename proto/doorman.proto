@@ -35,6 +35,29 @@ service Doorman {
 			body: "*"
 		};
 	};
+	rpc ListRelations(ListRelationsRequest) returns (ListRelationsResponse) {
+		option (google.api.http) = {
+			get: "/relations"
+		};
+	};
+	rpc Changes(ChangesRequest) returns (ChangesResponse) {
+		option (google.api.http) = {
+			get: "/changes"
+		};
+	};
+}
+
+message Change {
+	string type = 1;
+	// TODO: maybe oneof instead?
+	// google.protobuf.Struct payload = 2;
+}
+
+message Relation {
+	string subject = 1;
+	string verb = 2;
+	string object = 3;
+	repeated string path = 4;
 }
 
 message Role {
@@ -77,3 +100,22 @@ message UpsertRoleRequest {
 	repeated string verbs = 2;
 }
 
+message ListRelationsRequest {
+	string subject = 1;
+	optional string verb = 2;
+}
+
+message ListRelationsResponse {
+	repeated Relation items = 1;
+	optional string pagination_token = 2;
+}
+
+message ChangesRequest {
+	optional string type = 1;
+	optional string pagination_token = 2;
+}
+
+message ChangesResponse {
+	repeated Change items = 1;
+	optional string pagination_token = 2;
+}

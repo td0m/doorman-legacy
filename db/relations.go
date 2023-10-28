@@ -68,6 +68,15 @@ func (rs Relations) Remove(ctx context.Context, r doorman.Relation) error {
 	return nil
 }
 
+type RelationFilter struct {
+	Subject *string
+	Verb    *string
+}
+
+func (rs Relations) List(ctx context.Context, f RelationFilter) ([]doorman.Relation, error) {
+	panic("f")
+}
+
 func NewRelations(pool *pgxpool.Pool) Relations {
 	return Relations{pool: pool}
 }
