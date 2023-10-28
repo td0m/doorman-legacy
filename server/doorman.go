@@ -7,6 +7,7 @@ import (
 	"github.com/td0m/doorman"
 	"github.com/td0m/doorman/db"
 	pb "github.com/td0m/doorman/gen/go"
+	"golang.org/x/exp/slices"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -43,63 +44,51 @@ func (d *Doorman) Grant(ctx context.Context, request *pb.GrantRequest) (*pb.Gran
 		return nil, fmt.Errorf("tuples.Add failed: %w", err)
 	}
 
-	newTuples := []doorman.TupleWithPath{doorman.TupleWithPath{Tuple: tuple}}
+	newTuples := []doorman.TupleWithPath{}
 	{
-		var tupleChildren []doorman.Path
+		tupleChildren := []doorman.Path{{}}
 		if tuple.Object.Type() == "group" {
-			var err error
-			tupleChildren, err = d.tuples.ListConnected(ctx, tuple.Object, false)
+			connections, err := d.tuples.ListConnected(ctx, tuple.Object, false)
 			if err != nil {
 				return nil, fmt.Errorf("tuples.ListConnected(subj, false) failed: %w", err)
 			}
-			tupleChildren = filterConnectionsThroughGroups(tupleChildren)
+			tupleChildren = append(tupleChildren, connections...)
 		}
 
-		var tupleParents []doorman.Path
+		tupleParents := []doorman.Path{{}}
 		if tuple.Subject.Type() == "group" {
-			var err error
-			tupleParents, err = d.tuples.ListConnected(ctx, tuple.Subject, true)
+			connections, err := d.tuples.ListConnected(ctx, tuple.Subject, true)
 			if err != nil {
 				return nil, fmt.Errorf("tuples.ListConnected(obj, true) failed: %w", err)
 			}
-			tupleParents = filterConnectionsThroughGroups(tupleParents)
-		}
-
-		for _, child := range tupleChildren {
-			t := doorman.TupleWithPath{
-				Tuple: doorman.Tuple{
-					Object:  tuple.Object,
-					Role:    child[len(child)-1].Role,
-					Subject: child[len(child)-1].Object,
-				},
-				Path: child[:len(child)-1],
-			}
-			newTuples = append(newTuples, t)
-		}
-
-		for _, parent := range tupleParents {
-			t := doorman.TupleWithPath{
-				Tuple: doorman.Tuple{
-					Subject: parent[len(parent)-1].Object,
-					Role:    tuple.Role,
-					Object:  tuple.Object,
-				},
-				Path: parent[:len(parent)-1],
-			}
-			newTuples = append(newTuples, t)
+			tupleParents = append(tupleParents, connections...)
 		}
 
 		for _, child := range tupleChildren {
 			for _, parent := range tupleParents {
 				t := doorman.TupleWithPath{
 					Tuple: doorman.Tuple{
-						Subject: parent[len(parent)-1].Object,
-						Role:    child[len(child)-1].Role,
-						Object:  child[len(child)-1].Object,
+						Subject: tuple.Subject,
+						Role:    tuple.Role,
+						Object:  tuple.Object,
 					},
-					Path: append(parent[:len(parent)-1], child[:len(child)-1]...),
+					Path: doorman.Path{},
 				}
-				newTuples = append(newTuples, t)
+				if len(parent) > 0 {
+					t.Subject = parent[len(parent)-1].Object
+					path := parent[:len(parent)-1]
+					slices.Reverse(path)
+					t.Path = append(t.Path, path...)
+				}
+				if len(child) > 0 {
+					t.Object = child[len(child)-1].Object
+					t.Role = child[len(child)-1].Role
+					t.Path = append(t.Path, child[:len(child)-1]...)
+				}
+
+				if throughGroupsOnly(t.Path) {
+					newTuples = append(newTuples, t)
+				}
 			}
 		}
 	}
@@ -127,22 +116,9 @@ func NewDoorman(relations db.Relations, roles db.Roles, tuples db.Tuples) *Doorm
 }
 
 // e.g. user:alice -> item:1 -> item:2 should not connect user:alice with item:2
-func filterConnectionsThroughGroups(paths []doorman.Path) []doorman.Path {
-	filtered := []doorman.Path{}
-	for _, path := range paths {
-		if throughGroupsOnly(path) {
-			filtered = append(filtered, path)
-		}
-	}
-	return filtered
-}
-
+// why? because it's not a group
 func throughGroupsOnly(path doorman.Path) bool {
-	if len(path) < 1 {
-		return true
-	}
-
-	for _, conn := range path[:len(path)-1] {
+	for _, conn := range path {
 		if conn.Object.Type() != "group" {
 			return false
 		}

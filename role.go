@@ -14,4 +14,3 @@ func NewRole(id string, optverbs ...[]Verb) Role {
 	}
 	return Role{ID: id, Verbs: verbs}
 }
-

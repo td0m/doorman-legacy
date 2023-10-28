@@ -10,7 +10,7 @@ type Tuple struct {
 
 type TupleWithPath struct {
 	Tuple
-	Path  Path
+	Path Path
 }
 
 func (t Tuple) Equal(r Tuple) bool {

@@ -40,10 +40,13 @@ func (rs Relations) Check(ctx context.Context, r doorman.Relation) (bool, error)
 }
 
 func (rs Relations) Add(ctx context.Context, r doorman.Relation) error {
-	fmt.Println("add", r.String())
+	// fmt.Println("add", r.String())
+	// why on conflict? remove it and run the parallel test
+	// alternative? use a locking tx and read tuples then...
 	query := `
 		insert into relations(subject, verb, object, key)
 		values($1, $2, $3, $4)
+		on conflict do nothing
 	`
 
 	if _, err := rs.pool.Exec(ctx, query, r.Subject, r.Verb, r.Object, r.Key); err != nil {

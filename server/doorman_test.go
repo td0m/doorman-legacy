@@ -468,7 +468,7 @@ func TestCheckViaGroop(t *testing.T) {
 		require.NoError(t, err)
 	})
 
-	t.Run("Failure: Check after granting", func(t *testing.T) {
+	t.Run("Success: Check after granting", func(t *testing.T) {
 		res, err := server.Check(ctx, &pb.CheckRequest{
 			Subject: string(alice),
 			Verb:    "eat",
@@ -477,4 +477,79 @@ func TestCheckViaGroop(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, false, res.Success)
 	})
+}
+
+func TestCheckViaGroupAndGroop(t *testing.T) {
+	cleanup(conn)
+
+	relations := db.NewRelations(conn)
+	objects := db.NewObjects(conn)
+	roles := db.NewRoles(conn)
+	tuples := db.NewTuples(conn)
+
+	server := NewDoorman(relations, roles, tuples)
+	ctx := context.Background()
+
+	alice := doorman.Object("user:alice")
+	groupMember := doorman.Role{ID: "group:member", Verbs: []doorman.Verb{"foo"}}
+	groopMember := doorman.Role{ID: "groop:member", Verbs: []doorman.Verb{"foo"}}
+	superadmins := doorman.Object("group:superadmins")
+	admins := doorman.Object("groop:admins")
+	owner := doorman.Role{
+		ID:    "item:owner",
+		Verbs: []doorman.Verb{"eat"},
+	}
+	banana := doorman.Object("item:banana")
+
+	require.NoError(t, objects.Add(ctx, alice))
+	require.NoError(t, objects.Add(ctx, superadmins))
+	require.NoError(t, objects.Add(ctx, admins))
+	require.NoError(t, objects.Add(ctx, banana))
+	require.NoError(t, roles.Add(ctx, groupMember))
+	require.NoError(t, roles.Add(ctx, groopMember))
+	require.NoError(t, roles.Add(ctx, owner))
+
+	t.Run("Failure: Check before granting", func(t *testing.T) {
+		res, err := server.Check(ctx, &pb.CheckRequest{
+			Subject: string(alice),
+			Verb:    "eat",
+			Object:  string(banana),
+		})
+		require.NoError(t, err)
+		require.Equal(t, false, res.Success)
+	})
+
+	t.Run("Grant", func(t *testing.T) {
+		_, err := server.Grant(ctx, &pb.GrantRequest{
+			Subject: string(admins),
+			Role:    "owner",
+			Object:  string(banana),
+		})
+		require.NoError(t, err)
+
+		_, err = server.Grant(ctx, &pb.GrantRequest{
+			Subject: string(superadmins),
+			Role:    "member",
+			Object:  string(admins),
+		})
+		require.NoError(t, err)
+
+		_, err = server.Grant(ctx, &pb.GrantRequest{
+			Subject: string(alice),
+			Role:    "member",
+			Object:  string(superadmins),
+		})
+		require.NoError(t, err)
+	})
+
+	t.Run("Success: Check after granting", func(t *testing.T) {
+		res, err := server.Check(ctx, &pb.CheckRequest{
+			Subject: string(alice),
+			Verb:    "eat",
+			Object:  string(banana),
+		})
+		require.NoError(t, err)
+		require.Equal(t, false, res.Success)
+	})
+
 }

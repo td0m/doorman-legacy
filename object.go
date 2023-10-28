@@ -18,4 +18,3 @@ func (o Object) Validate() error {
 func (o Object) Type() string {
 	return strings.Split(string(o), ":")[0]
 }
-
