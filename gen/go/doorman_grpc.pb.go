@@ -19,9 +19,10 @@ import (
 const _ = grpc.SupportPackageIsVersion7
 
 const (
-	Doorman_Check_FullMethodName  = "/doorman.Doorman/Check"
-	Doorman_Grant_FullMethodName  = "/doorman.Doorman/Grant"
-	Doorman_Revoke_FullMethodName = "/doorman.Doorman/Revoke"
+	Doorman_Check_FullMethodName      = "/doorman.Doorman/Check"
+	Doorman_Grant_FullMethodName      = "/doorman.Doorman/Grant"
+	Doorman_Revoke_FullMethodName     = "/doorman.Doorman/Revoke"
+	Doorman_UpdateRole_FullMethodName = "/doorman.Doorman/UpdateRole"
 )
 
 // DoormanClient is the client API for Doorman service.
@@ -31,6 +32,7 @@ type DoormanClient interface {
 	Check(ctx context.Context, in *CheckRequest, opts ...grpc.CallOption) (*CheckResponse, error)
 	Grant(ctx context.Context, in *GrantRequest, opts ...grpc.CallOption) (*GrantResponse, error)
 	Revoke(ctx context.Context, in *RevokeRequest, opts ...grpc.CallOption) (*RevokeResponse, error)
+	UpdateRole(ctx context.Context, in *UpdateRoleRequest, opts ...grpc.CallOption) (*Role, error)
 }
 
 type doormanClient struct {
@@ -68,6 +70,15 @@ func (c *doormanClient) Revoke(ctx context.Context, in *RevokeRequest, opts ...g
 	return out, nil
 }
 
+func (c *doormanClient) UpdateRole(ctx context.Context, in *UpdateRoleRequest, opts ...grpc.CallOption) (*Role, error) {
+	out := new(Role)
+	err := c.cc.Invoke(ctx, Doorman_UpdateRole_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // DoormanServer is the server API for Doorman service.
 // All implementations must embed UnimplementedDoormanServer
 // for forward compatibility
@@ -75,6 +86,7 @@ type DoormanServer interface {
 	Check(context.Context, *CheckRequest) (*CheckResponse, error)
 	Grant(context.Context, *GrantRequest) (*GrantResponse, error)
 	Revoke(context.Context, *RevokeRequest) (*RevokeResponse, error)
+	UpdateRole(context.Context, *UpdateRoleRequest) (*Role, error)
 	mustEmbedUnimplementedDoormanServer()
 }
 
@@ -90,6 +102,9 @@ func (UnimplementedDoormanServer) Grant(context.Context, *GrantRequest) (*GrantR
 }
 func (UnimplementedDoormanServer) Revoke(context.Context, *RevokeRequest) (*RevokeResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Revoke not implemented")
+}
+func (UnimplementedDoormanServer) UpdateRole(context.Context, *UpdateRoleRequest) (*Role, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UpdateRole not implemented")
 }
 func (UnimplementedDoormanServer) mustEmbedUnimplementedDoormanServer() {}
 
@@ -158,6 +173,24 @@ func _Doorman_Revoke_Handler(srv interface{}, ctx context.Context, dec func(inte
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Doorman_UpdateRole_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateRoleRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DoormanServer).UpdateRole(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Doorman_UpdateRole_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DoormanServer).UpdateRole(ctx, req.(*UpdateRoleRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // Doorman_ServiceDesc is the grpc.ServiceDesc for Doorman service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -176,6 +209,10 @@ var Doorman_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "Revoke",
 			Handler:    _Doorman_Revoke_Handler,
+		},
+		{
+			MethodName: "UpdateRole",
+			Handler:    _Doorman_UpdateRole_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

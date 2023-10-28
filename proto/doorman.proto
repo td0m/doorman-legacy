@@ -24,6 +24,17 @@ service Doorman {
 			body: "*"
 		};
 	};
+	rpc UpdateRole(UpdateRoleRequest) returns (Role) {
+		option (google.api.http) = {
+			put: "/roles/{id}"
+			body: "*"
+		};
+	};
+}
+
+message Role {
+	string id = 1;
+	repeated string verbs = 2;
 }
 
 message CheckRequest {
@@ -51,3 +62,9 @@ message RevokeRequest {
 }
 
 message RevokeResponse {}
+
+message UpdateRoleRequest {
+	string id = 1;
+	repeated string verbs = 2;
+}
+
