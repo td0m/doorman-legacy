@@ -46,6 +46,18 @@ func (r Roles) Retrieve(ctx context.Context, id string) (*doorman.Role, error) {
 	return &role, nil
 }
 
+func (r Roles) Remove(ctx context.Context, id string) error {
+	query := `
+		delete from roles where id=$1
+	`
+
+	if _, err := r.pool.Exec(ctx, query, id); err != nil {
+		return fmt.Errorf("exec failed: %w", err)
+	}
+
+	return nil
+}
+
 func (r Roles) Upsert(ctx context.Context, role *doorman.Role) error {
 	query := `
 		insert into roles(id, verbs)

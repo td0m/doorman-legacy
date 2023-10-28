@@ -22,6 +22,7 @@ const (
 	Doorman_Check_FullMethodName      = "/doorman.Doorman/Check"
 	Doorman_Grant_FullMethodName      = "/doorman.Doorman/Grant"
 	Doorman_Revoke_FullMethodName     = "/doorman.Doorman/Revoke"
+	Doorman_RemoveRole_FullMethodName = "/doorman.Doorman/RemoveRole"
 	Doorman_UpsertRole_FullMethodName = "/doorman.Doorman/UpsertRole"
 )
 
@@ -32,6 +33,7 @@ type DoormanClient interface {
 	Check(ctx context.Context, in *CheckRequest, opts ...grpc.CallOption) (*CheckResponse, error)
 	Grant(ctx context.Context, in *GrantRequest, opts ...grpc.CallOption) (*GrantResponse, error)
 	Revoke(ctx context.Context, in *RevokeRequest, opts ...grpc.CallOption) (*RevokeResponse, error)
+	RemoveRole(ctx context.Context, in *RemoveRoleRequest, opts ...grpc.CallOption) (*Role, error)
 	UpsertRole(ctx context.Context, in *UpsertRoleRequest, opts ...grpc.CallOption) (*Role, error)
 }
 
@@ -70,6 +72,15 @@ func (c *doormanClient) Revoke(ctx context.Context, in *RevokeRequest, opts ...g
 	return out, nil
 }
 
+func (c *doormanClient) RemoveRole(ctx context.Context, in *RemoveRoleRequest, opts ...grpc.CallOption) (*Role, error) {
+	out := new(Role)
+	err := c.cc.Invoke(ctx, Doorman_RemoveRole_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *doormanClient) UpsertRole(ctx context.Context, in *UpsertRoleRequest, opts ...grpc.CallOption) (*Role, error) {
 	out := new(Role)
 	err := c.cc.Invoke(ctx, Doorman_UpsertRole_FullMethodName, in, out, opts...)
@@ -86,6 +97,7 @@ type DoormanServer interface {
 	Check(context.Context, *CheckRequest) (*CheckResponse, error)
 	Grant(context.Context, *GrantRequest) (*GrantResponse, error)
 	Revoke(context.Context, *RevokeRequest) (*RevokeResponse, error)
+	RemoveRole(context.Context, *RemoveRoleRequest) (*Role, error)
 	UpsertRole(context.Context, *UpsertRoleRequest) (*Role, error)
 	mustEmbedUnimplementedDoormanServer()
 }
@@ -102,6 +114,9 @@ func (UnimplementedDoormanServer) Grant(context.Context, *GrantRequest) (*GrantR
 }
 func (UnimplementedDoormanServer) Revoke(context.Context, *RevokeRequest) (*RevokeResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Revoke not implemented")
+}
+func (UnimplementedDoormanServer) RemoveRole(context.Context, *RemoveRoleRequest) (*Role, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method RemoveRole not implemented")
 }
 func (UnimplementedDoormanServer) UpsertRole(context.Context, *UpsertRoleRequest) (*Role, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpsertRole not implemented")
@@ -173,6 +188,24 @@ func _Doorman_Revoke_Handler(srv interface{}, ctx context.Context, dec func(inte
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Doorman_RemoveRole_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RemoveRoleRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DoormanServer).RemoveRole(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Doorman_RemoveRole_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DoormanServer).RemoveRole(ctx, req.(*RemoveRoleRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _Doorman_UpsertRole_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(UpsertRoleRequest)
 	if err := dec(in); err != nil {
@@ -209,6 +242,10 @@ var Doorman_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "Revoke",
 			Handler:    _Doorman_Revoke_Handler,
+		},
+		{
+			MethodName: "RemoveRole",
+			Handler:    _Doorman_RemoveRole_Handler,
 		},
 		{
 			MethodName: "UpsertRole",

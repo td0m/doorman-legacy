@@ -908,3 +908,67 @@ func TestCheckUpsertRoleCreate(t *testing.T) {
 		require.NoError(t, err)
 	})
 }
+
+func TestRemoveRole(t *testing.T) {
+	cleanup(conn)
+
+	relations := db.NewRelations(conn)
+	objects := db.NewObjects(conn)
+	roles := db.NewRoles(conn)
+	tuples := db.NewTuples(conn)
+
+	server := NewDoorman(relations, roles, tuples)
+	ctx := context.Background()
+
+	alice := doorman.Object("user:alice")
+	owner := doorman.Role{
+		ID:    "item:owner",
+		Verbs: []doorman.Verb{"eat"},
+	}
+	banana := doorman.Object("item:banana")
+
+	require.NoError(t, objects.Add(ctx, alice))
+	require.NoError(t, roles.Add(ctx, owner))
+	require.NoError(t, objects.Add(ctx, banana))
+
+	_, err := server.Grant(ctx, &pb.GrantRequest{
+		Subject: string(alice),
+		Role:    "owner",
+		Object:  string(banana),
+	})
+	require.NoError(t, err)
+
+	t.Run("Can access role before removing", func(t *testing.T) {
+		res, err := server.Check(ctx, &pb.CheckRequest{
+			Subject: string(alice),
+			Verb:    "eat",
+			Object:  string(banana),
+		})
+		require.NoError(t, err)
+		require.Equal(t, true, res.Success)
+	})
+
+	t.Run("Success removing role", func(t *testing.T) {
+		_, err := server.RemoveRole(ctx, &pb.RemoveRoleRequest{
+			Id: "item:owner",
+		})
+		require.NoError(t, err)
+	})
+
+	t.Run("Fails to remove role again", func(t *testing.T) {
+		_, err := server.RemoveRole(ctx, &pb.RemoveRoleRequest{
+			Id: "item:owner",
+		})
+		require.Error(t, err)
+	})
+
+	t.Run("Removed existing tuples with the role", func(t *testing.T) {
+		res, err := server.Check(ctx, &pb.CheckRequest{
+			Subject: string(alice),
+			Verb:    "eat",
+			Object:  string(banana),
+		})
+		require.NoError(t, err)
+		require.Equal(t, false, res.Success)
+	})
+}

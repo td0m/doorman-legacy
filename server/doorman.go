@@ -82,6 +82,36 @@ func (d *Doorman) Revoke(ctx context.Context, request *pb.RevokeRequest) (*pb.Re
 	return &pb.RevokeResponse{}, nil
 }
 
+func (d *Doorman) RemoveRole(ctx context.Context, request *pb.RemoveRoleRequest) (*pb.Role, error) {
+	role, err := d.roles.Retrieve(ctx, request.Id)
+	if err != nil {
+		return nil, fmt.Errorf("db.Retrieve failed: %w", err)
+	}
+
+	var tuples []doorman.Tuple
+	tuples, err = d.tuples.ListTuplesForRole(ctx, role.ID)
+	if err != nil {
+		return nil, fmt.Errorf("ListTuplesForRole failed: %w", err)
+	}
+
+	for _, t := range tuples {
+		_, err := d.Revoke(ctx, &pb.RevokeRequest{
+			Subject: string(t.Subject),
+			Role:    doorman.Object(role.ID).Value(),
+			Object:  string(t.Object),
+		})
+		if err != nil {
+			return nil, fmt.Errorf("revoke failed for %s: %w", t, err)
+		}
+	}
+
+	if err := d.roles.Remove(ctx, request.Id); err != nil {
+		return nil, fmt.Errorf("update failed: %w", err)
+	}
+
+	return &pb.Role{}, nil
+}
+
 func (d *Doorman) UpsertRole(ctx context.Context, request *pb.UpsertRoleRequest) (*pb.Role, error) {
 	role, err := d.roles.Retrieve(ctx, request.Id)
 	if err == db.ErrInvalidRole {
@@ -90,16 +120,14 @@ func (d *Doorman) UpsertRole(ctx context.Context, request *pb.UpsertRoleRequest)
 		return nil, fmt.Errorf("db.Retrieve failed: %w", err)
 	}
 
-	var tuples []doorman.Tuple
-	if role != nil {
-		tuples, err = d.tuples.ListTuplesForRole(ctx, role.ID)
-		if err != nil {
-			return nil, fmt.Errorf("ListTuplesForRole failed: %w", err)
-		}
+	tuples, err := d.tuples.ListTuplesForRole(ctx, role.ID)
+	if err != nil {
+		return nil, fmt.Errorf("ListTuplesForRole failed: %w", err)
 	}
 
-	// THIS SHOULD BE A TX. IF IT FAILS AT ANY POINT AFTER REVOKE THEN WE ARE F*CKED
+	// TODO: THIS SHOULD BE A TX. IF IT FAILS AT ANY POINT AFTER REVOKE THEN WE ARE F*CKED
 	// BECAUSE WE HAVE LOST SOURCE OF TRUF
+	// ALT: list connections yourself and compute diff
 
 	for _, t := range tuples {
 		_, err := d.Revoke(ctx, &pb.RevokeRequest{
@@ -123,7 +151,6 @@ func (d *Doorman) UpsertRole(ctx context.Context, request *pb.UpsertRoleRequest)
 	}
 
 	for _, t := range tuples {
-		fmt.Println(t)
 		_, err := d.Grant(ctx, &pb.GrantRequest{
 			Subject: string(t.Subject),
 			Role:    doorman.Object(role.ID).Value(),
