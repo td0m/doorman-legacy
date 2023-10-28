@@ -16,5 +16,9 @@ func (o Object) Validate() error {
 }
 
 func (o Object) Type() string {
-	return strings.Split(string(o), ":")[0]
+	return strings.SplitN(string(o), ":", 2)[0]
+}
+
+func (o Object) Value() string {
+	return strings.SplitN(string(o), ":", 2)[1]
 }
