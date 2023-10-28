@@ -57,7 +57,15 @@ func (rs Relations) Add(ctx context.Context, r doorman.Relation) error {
 }
 
 func (rs Relations) Remove(ctx context.Context, r doorman.Relation) error {
-	panic("fak")
+	query := `
+		delete from relations
+		where (subject, verb, object, path) = ($1, $2, $3, $4)
+	`
+	if _, err := rs.pool.Exec(ctx, query, r.Subject, r.Verb, r.Object, r.Path); err != nil {
+		return fmt.Errorf("exec failed: %w", err)
+	}
+
+	return nil
 }
 
 func NewRelations(pool *pgxpool.Pool) Relations {

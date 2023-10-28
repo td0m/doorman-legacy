@@ -13,6 +13,7 @@ import (
 
 var ErrInvalidRole = errors.New("this role does not exist for the given object type")
 var ErrCycle = errors.New("cycle detected")
+var ErrTupleNotFound = errors.New("tuple not found")
 
 type Tuples struct {
 	pool *pgxpool.Pool
@@ -73,7 +74,7 @@ func (t Tuples) Remove(ctx context.Context, tuple doorman.Tuple) error {
 	}
 
 	if tag.RowsAffected() == 0 {
-		return fmt.Errorf("tuple not found")
+		return ErrTupleNotFound
 	}
 	return nil
 }
