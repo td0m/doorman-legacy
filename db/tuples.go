@@ -103,6 +103,29 @@ func NewTuples(conn *pgxpool.Pool) Tuples {
 	return Tuples{conn}
 }
 
+func (t Tuples) ListTuplesForRole(ctx context.Context, role string) ([]doorman.Tuple, error) {
+	query := `
+		select subject, object
+		from tuples
+		where role = $1
+	`
+
+	rows, err := t.pool.Query(ctx, query, role)
+	if err != nil {
+		return nil, fmt.Errorf("query failed: %w", err)
+	}
+
+	var tuples []doorman.Tuple
+	for rows.Next() {
+		t := doorman.Tuple{Role: role}
+		if err := rows.Scan(&t.Subject, &t.Object); err != nil {
+			return nil, fmt.Errorf("scan failed: %w", err)
+		}
+		tuples = append(tuples, t)
+	}
+	return tuples, nil
+}
+
 func (t Tuples) ListConnected(ctx context.Context, subject doorman.Object, inverted bool) ([]doorman.Path, error) {
 	return listConnected(ctx, t.pool, subject, inverted)
 }
