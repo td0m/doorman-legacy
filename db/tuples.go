@@ -5,12 +5,14 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/td0m/doorman"
 )
 
 var ErrInvalidRole = errors.New("this role does not exist for the given object type")
+var ErrCycle = errors.New("cycle detected")
 
 type Tuples struct {
 	pool *pgxpool.Pool
@@ -22,7 +24,18 @@ func (t Tuples) Add(ctx context.Context, tuple doorman.Tuple) error {
 		values($1, $2, $3)
 	`
 
-	if _, err := t.pool.Exec(ctx, query, tuple.Subject, tuple.Role, tuple.Object); err != nil {
+	tx, err := t.pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("begin tx failed: %w", err)
+	}
+
+	// Without locking we can get some issues with concurrent writes
+	// Comment out for proof / check what will break
+	if _, err := tx.Exec(ctx, `lock table tuples in access exclusive mode`); err != nil {
+		return fmt.Errorf("locking table tuples failed: %w", err)
+	}
+
+	if _, err := tx.Exec(ctx, query, tuple.Subject, tuple.Role, tuple.Object); err != nil {
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) {
 			if pgErr.ConstraintName == "tuples_role_fkey" && pgErr.Code == "23503" {
@@ -31,7 +44,21 @@ func (t Tuples) Add(ctx context.Context, tuple doorman.Tuple) error {
 		}
 		return err
 	}
-	return nil
+
+	connected, err := listConnected(ctx, tx, tuple.Object)
+	if err != nil {
+		return fmt.Errorf("listConnected failed: %w", err)
+	}
+	for _, o := range connected {
+		if o == tuple.Subject {
+			if err := tx.Rollback(ctx); err != nil {
+				return fmt.Errorf("failed to rollback on cycle: %w", err)
+			}
+			return ErrCycle
+		}
+	}
+
+	return tx.Commit(ctx)
 }
 
 func (t Tuples) Remove(ctx context.Context, tuple doorman.Tuple) error {
@@ -111,4 +138,39 @@ func (t Tuples) ListConnected(ctx context.Context, subject doorman.Object, inver
 	}
 
 	return paths, nil
+}
+
+func listConnected(ctx context.Context, tx pgx.Tx, subject doorman.Object) ([]doorman.Object, error) {
+	query := `
+		with recursive connections as (
+			select
+				object
+			from tuples
+			where subject = $1
+
+			union
+
+			select next.object
+			from tuples next
+			inner join
+				connections prev on prev.object = next.subject
+			where next.object != $1
+		) select object from connections
+	`
+
+	rows, err := tx.Query(ctx, query, subject)
+	if err != nil {
+		return nil, fmt.Errorf("query failed: %w", err)
+	}
+
+	var objects []doorman.Object
+	for rows.Next() {
+		o := doorman.Object("")
+		if err := rows.Scan(&o); err != nil {
+			return nil, fmt.Errorf("scan failed: %w", err)
+		}
+		objects = append(objects, o)
+	}
+
+	return objects, nil
 }

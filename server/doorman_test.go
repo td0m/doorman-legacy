@@ -553,3 +553,104 @@ func TestCheckViaGroupAndGroop(t *testing.T) {
 	})
 
 }
+
+func TestConnectingToSelfFails(t *testing.T) {
+	cleanup(conn)
+
+	relations := db.NewRelations(conn)
+	objects := db.NewObjects(conn)
+	roles := db.NewRoles(conn)
+	tuples := db.NewTuples(conn)
+
+	server := NewDoorman(relations, roles, tuples)
+	ctx := context.Background()
+
+	groupMember := doorman.Role{ID: "group:member", Verbs: []doorman.Verb{"foo"}}
+	admins := doorman.Object("group:admins")
+	owner := doorman.Role{
+		ID:    "item:owner",
+		Verbs: []doorman.Verb{"eat"},
+	}
+	banana := doorman.Object("item:banana")
+
+	require.NoError(t, objects.Add(ctx, admins))
+	require.NoError(t, objects.Add(ctx, banana))
+	require.NoError(t, roles.Add(ctx, groupMember))
+	require.NoError(t, roles.Add(ctx, owner))
+
+	_, err := server.Grant(ctx, &pb.GrantRequest{
+		Subject: string(admins),
+		Role:    "owner",
+		Object:  string(banana),
+	})
+	require.NoError(t, err)
+
+	t.Run("Fails directly", func(t *testing.T) {
+		_, err := server.Grant(ctx, &pb.GrantRequest{
+			Subject: string(banana),
+			Role:    "owner",
+			Object:  string(banana),
+		})
+		require.ErrorIs(t, err, db.ErrCycle)
+	})
+
+	t.Run("Fails indirectly", func(t *testing.T) {
+		_, err := server.Grant(ctx, &pb.GrantRequest{
+			Subject: string(banana),
+			Role:    "member",
+			Object:  string(admins),
+		})
+		require.ErrorIs(t, err, db.ErrCycle)
+	})
+}
+
+func TestConnectingToSelfIndirectlyInParallelFails(t *testing.T) {
+	cleanup(conn)
+
+	relations := db.NewRelations(conn)
+	objects := db.NewObjects(conn)
+	roles := db.NewRoles(conn)
+	tuples := db.NewTuples(conn)
+
+	server := NewDoorman(relations, roles, tuples)
+	ctx := context.Background()
+
+	groupMember := doorman.Role{ID: "group:member", Verbs: []doorman.Verb{"foo"}}
+	admins := doorman.Object("group:admins")
+	owner := doorman.Role{
+		ID:    "item:owner",
+		Verbs: []doorman.Verb{"eat"},
+	}
+	banana := doorman.Object("item:banana")
+
+	require.NoError(t, objects.Add(ctx, admins))
+	require.NoError(t, objects.Add(ctx, banana))
+	require.NoError(t, roles.Add(ctx, groupMember))
+	require.NoError(t, roles.Add(ctx, owner))
+
+	// run many times as failing cound happen at random
+	for i := 0; i < 100; i++ {
+		_, _ = conn.Exec(ctx, `delete from tuples`)
+
+		var g errgroup.Group
+		g.Go(func() error {
+			_, err := server.Grant(ctx, &pb.GrantRequest{
+				Subject: string(banana),
+				Role:    "member",
+				Object:  string(admins),
+			})
+			return err
+		})
+		g.Go(func() error {
+			_, err := server.Grant(ctx, &pb.GrantRequest{
+				Subject: string(admins),
+				Role:    "owner",
+				Object:  string(banana),
+			})
+			return err
+		})
+
+		err := g.Wait()
+		require.ErrorIs(t, err, db.ErrCycle, "run %d", i)
+	}
+}
