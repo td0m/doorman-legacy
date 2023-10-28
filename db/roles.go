@@ -42,6 +42,20 @@ func (r Roles) Retrieve(ctx context.Context, id string) (*doorman.Role, error) {
 	return &role, nil
 }
 
+func (r Roles) Update(ctx context.Context, role *doorman.Role) (error) {
+	query := `
+		update roles
+		set verbs = $2
+		where id = $1
+	`
+
+	if _, err := r.pool.Exec(ctx, query, role.ID, role.Verbs); err != nil {
+		return fmt.Errorf("exec failed: %w", err)
+	}
+
+	return nil
+}
+
 func NewRoles(pool *pgxpool.Pool) Roles {
 	return Roles{pool}
 }
