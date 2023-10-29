@@ -85,6 +85,13 @@ func (d *Doorman) grantWithTx(ctx context.Context, tx pgx.Tx, request *pb.GrantR
 		}
 	}
 
+	changes := append(doorman.TuplesToChanges(newTuples, true), doorman.RelationsToChanges(newRelations, true)...)
+	for _, change := range changes {
+		if err := d.changes.Add(ctx, change); err != nil {
+			return nil, fmt.Errorf("changes.Add failed: %w, %w", err, tx.Rollback(ctx))
+		}
+	}
+
 	return &pb.GrantResponse{}, nil
 }
 
@@ -133,6 +140,13 @@ func (d *Doorman) revokeWithTx(ctx context.Context, tx pgx.Tx, request *pb.Revok
 	for _, r := range removedRelations {
 		if err := d.relations.WithTx(tx).Remove(ctx, r); err != nil {
 			return nil, fmt.Errorf("failed to remove relation %+v: %w, %w", r, err, tx.Rollback(ctx))
+		}
+	}
+
+	changes := append(doorman.TuplesToChanges(removedTuples, false), doorman.RelationsToChanges(removedRelations, false)...)
+	for _, change := range changes {
+		if err := d.changes.Add(ctx, change); err != nil {
+			return nil, fmt.Errorf("changes.Add failed: %w, %w", err, tx.Rollback(ctx))
 		}
 	}
 
@@ -264,6 +278,9 @@ func (d *Doorman) Changes(ctx context.Context, request *pb.ChangesRequest) (*pb.
 	}
 	for i, v := range changes {
 		res.Items[i] = mapChangeToPb(v)
+		if i == len(changes)-1 {
+			res.PaginationToken = &v.ID
+		}
 	}
 	return res, nil
 }

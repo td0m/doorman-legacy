@@ -903,3 +903,50 @@ func TestRemoveRole(t *testing.T) {
 		require.Equal(t, false, res.Success)
 	})
 }
+
+func TestListChanges(t *testing.T) {
+	cleanup(conn)
+	s := NewDoorman(conn)
+	ctx := context.Background()
+
+	alice := doorman.Object("user:alice")
+	owner := doorman.Role{
+		ID:    "item:owner",
+		Verbs: []doorman.Verb{"eat"},
+	}
+	banana := doorman.Object("item:banana")
+
+	require.NoError(t, s.objects.Add(ctx, alice))
+	require.NoError(t, s.roles.Add(ctx, owner))
+	require.NoError(t, s.objects.Add(ctx, banana))
+
+	{
+		_, err := s.Grant(ctx, &pb.GrantRequest{
+			Subject: string(alice),
+			Role:    string("owner"),
+			Object:  string(banana),
+		})
+		require.NoError(t, err)
+	}
+
+	res, err := s.Changes(ctx, &pb.ChangesRequest{})
+	require.NoError(t, err)
+	require.Equal(t, 2, len(res.Items))
+	require.Equal(t, "TUPLE_CREATED", res.Items[0].Type)
+	require.Equal(t, "RELATION_CREATED", res.Items[1].Type)
+
+	{
+		_, err := s.Revoke(ctx, &pb.RevokeRequest{
+			Subject: string(alice),
+			Role:    string("owner"),
+			Object:  string(banana),
+		})
+		require.NoError(t, err)
+	}
+
+	res, err = s.Changes(ctx, &pb.ChangesRequest{PaginationToken: res.PaginationToken})
+	require.NoError(t, err)
+	require.Equal(t, 2, len(res.Items))
+	require.Equal(t, "TUPLE_REMOVED", res.Items[0].Type)
+	require.Equal(t, "RELATION_REMOVED", res.Items[1].Type)
+}
