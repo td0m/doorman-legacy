@@ -34,6 +34,9 @@ func TuplesToRelations(ctx context.Context, tuples []TupleWithPath, r resolveRol
 
 	relations := []Relation{}
 	for _, t := range tuples {
+		if !t.Path.GroupsOnly() {
+			continue
+		}
 		for _, verb := range uniqueRoles[t.Role].Verbs {
 			path := []string{}
 			for _, c := range t.Path {

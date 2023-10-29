@@ -4,12 +4,17 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/td0m/doorman"
 )
 
 type Relations struct {
-	pool *pgxpool.Pool
+	conn querier
+}
+
+func (r Relations) WithTx(tx pgx.Tx) *Relations {
+	return &Relations{conn: tx}
 }
 
 // 1m users, 1k posts
@@ -25,7 +30,7 @@ func (rs Relations) Check(ctx context.Context, r doorman.Relation) (bool, error)
 		limit 1
 	`
 
-	rows, err := rs.pool.Query(ctx, query, r.Subject, r.Verb, r.Object)
+	rows, err := rs.conn.Query(ctx, query, r.Subject, r.Verb, r.Object)
 	if err != nil {
 		return false, fmt.Errorf("query failed: %w", err)
 	}
@@ -49,7 +54,7 @@ func (rs Relations) Add(ctx context.Context, r doorman.Relation) error {
 		on conflict do nothing
 	`
 
-	if _, err := rs.pool.Exec(ctx, query, r.Subject, r.Verb, r.Object, r.Path); err != nil {
+	if _, err := rs.conn.Exec(ctx, query, r.Subject, r.Verb, r.Object, r.Path); err != nil {
 		return fmt.Errorf("exec failed: %w", err)
 	}
 
@@ -61,7 +66,7 @@ func (rs Relations) Remove(ctx context.Context, r doorman.Relation) error {
 		delete from relations
 		where (subject, verb, object, path) = ($1, $2, $3, $4)
 	`
-	if _, err := rs.pool.Exec(ctx, query, r.Subject, r.Verb, r.Object, r.Path); err != nil {
+	if _, err := rs.conn.Exec(ctx, query, r.Subject, r.Verb, r.Object, r.Path); err != nil {
 		return fmt.Errorf("exec failed: %w", err)
 	}
 
@@ -78,5 +83,5 @@ func (rs Relations) List(ctx context.Context, f RelationFilter) ([]doorman.Relat
 }
 
 func NewRelations(pool *pgxpool.Pool) Relations {
-	return Relations{pool: pool}
+	return Relations{conn: pool}
 }

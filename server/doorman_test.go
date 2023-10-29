@@ -44,13 +44,7 @@ func TestMain(m *testing.M) {
 func TestCheckDirect(t *testing.T) {
 	cleanup(conn)
 
-	changes := db.NewChanges(conn)
-	objects := db.NewObjects(conn)
-	relations := db.NewRelations(conn)
-	roles := db.NewRoles(conn)
-	tuples := db.NewTuples(conn)
-
-	server := NewDoorman(changes, relations, roles, tuples)
+	s := NewDoorman(conn)
 	ctx := context.Background()
 
 	alice := doorman.Object("user:alice")
@@ -60,12 +54,12 @@ func TestCheckDirect(t *testing.T) {
 	}
 	admins := doorman.Object("group:admins")
 
-	require.NoError(t, objects.Add(ctx, alice))
-	require.NoError(t, objects.Add(ctx, admins))
-	require.NoError(t, roles.Add(ctx, member))
+	require.NoError(t, s.objects.Add(ctx, alice))
+	require.NoError(t, s.objects.Add(ctx, admins))
+	require.NoError(t, s.roles.Add(ctx, member))
 
 	t.Run("Failure: Check before granting", func(t *testing.T) {
-		res, err := server.Check(ctx, &pb.CheckRequest{
+		res, err := s.Check(ctx, &pb.CheckRequest{
 			Subject: string(alice),
 			Verb:    "foo",
 			Object:  string(admins),
@@ -75,7 +69,7 @@ func TestCheckDirect(t *testing.T) {
 	})
 
 	t.Run("Grant", func(t *testing.T) {
-		_, err := server.Grant(ctx, &pb.GrantRequest{
+		_, err := s.Grant(ctx, &pb.GrantRequest{
 			Subject: string(alice),
 			Role:    "member",
 			Object:  string(admins),
@@ -84,7 +78,7 @@ func TestCheckDirect(t *testing.T) {
 	})
 
 	t.Run("Success: Check after granting", func(t *testing.T) {
-		res, err := server.Check(ctx, &pb.CheckRequest{
+		res, err := s.Check(ctx, &pb.CheckRequest{
 			Subject: string(alice),
 			Verb:    "foo",
 			Object:  string(admins),
@@ -97,13 +91,7 @@ func TestCheckDirect(t *testing.T) {
 func TestCheckViaGroup(t *testing.T) {
 	cleanup(conn)
 
-	changes := db.NewChanges(conn)
-	objects := db.NewObjects(conn)
-	relations := db.NewRelations(conn)
-	roles := db.NewRoles(conn)
-	tuples := db.NewTuples(conn)
-
-	server := NewDoorman(changes, relations, roles, tuples)
+	s := NewDoorman(conn)
 	ctx := context.Background()
 
 	alice := doorman.Object("user:alice")
@@ -118,14 +106,14 @@ func TestCheckViaGroup(t *testing.T) {
 	}
 	banana := doorman.Object("item:banana")
 
-	require.NoError(t, objects.Add(ctx, alice))
-	require.NoError(t, objects.Add(ctx, admins))
-	require.NoError(t, objects.Add(ctx, banana))
-	require.NoError(t, roles.Add(ctx, member))
-	require.NoError(t, roles.Add(ctx, owner))
+	require.NoError(t, s.objects.Add(ctx, alice))
+	require.NoError(t, s.objects.Add(ctx, admins))
+	require.NoError(t, s.objects.Add(ctx, banana))
+	require.NoError(t, s.roles.Add(ctx, member))
+	require.NoError(t, s.roles.Add(ctx, owner))
 
 	t.Run("Failure: Check before granting", func(t *testing.T) {
-		res, err := server.Check(ctx, &pb.CheckRequest{
+		res, err := s.Check(ctx, &pb.CheckRequest{
 			Subject: string(alice),
 			Verb:    "eat",
 			Object:  string(banana),
@@ -135,14 +123,14 @@ func TestCheckViaGroup(t *testing.T) {
 	})
 
 	t.Run("Grant", func(t *testing.T) {
-		_, err := server.Grant(ctx, &pb.GrantRequest{
+		_, err := s.Grant(ctx, &pb.GrantRequest{
 			Subject: string(alice),
 			Role:    "member",
 			Object:  string(admins),
 		})
 		require.NoError(t, err)
 
-		_, err = server.Grant(ctx, &pb.GrantRequest{
+		_, err = s.Grant(ctx, &pb.GrantRequest{
 			Subject: string(admins),
 			Role:    "owner",
 			Object:  string(banana),
@@ -151,7 +139,7 @@ func TestCheckViaGroup(t *testing.T) {
 	})
 
 	t.Run("Success: Check after granting", func(t *testing.T) {
-		res, err := server.Check(ctx, &pb.CheckRequest{
+		res, err := s.Check(ctx, &pb.CheckRequest{
 			Subject: string(alice),
 			Verb:    "eat",
 			Object:  string(banana),
@@ -164,13 +152,7 @@ func TestCheckViaGroup(t *testing.T) {
 func TestCheckViaTwoGroups(t *testing.T) {
 	cleanup(conn)
 
-	changes := db.NewChanges(conn)
-	objects := db.NewObjects(conn)
-	relations := db.NewRelations(conn)
-	roles := db.NewRoles(conn)
-	tuples := db.NewTuples(conn)
-
-	server := NewDoorman(changes, relations, roles, tuples)
+	s := NewDoorman(conn)
 	ctx := context.Background()
 
 	alice := doorman.Object("user:alice")
@@ -186,15 +168,15 @@ func TestCheckViaTwoGroups(t *testing.T) {
 	}
 	banana := doorman.Object("item:banana")
 
-	require.NoError(t, objects.Add(ctx, alice))
-	require.NoError(t, objects.Add(ctx, superadmins))
-	require.NoError(t, objects.Add(ctx, admins))
-	require.NoError(t, objects.Add(ctx, banana))
-	require.NoError(t, roles.Add(ctx, member))
-	require.NoError(t, roles.Add(ctx, owner))
+	require.NoError(t, s.objects.Add(ctx, alice))
+	require.NoError(t, s.objects.Add(ctx, superadmins))
+	require.NoError(t, s.objects.Add(ctx, admins))
+	require.NoError(t, s.objects.Add(ctx, banana))
+	require.NoError(t, s.roles.Add(ctx, member))
+	require.NoError(t, s.roles.Add(ctx, owner))
 
 	t.Run("Failure: Check before granting", func(t *testing.T) {
-		res, err := server.Check(ctx, &pb.CheckRequest{
+		res, err := s.Check(ctx, &pb.CheckRequest{
 			Subject: string(alice),
 			Verb:    "eat",
 			Object:  string(banana),
@@ -204,21 +186,21 @@ func TestCheckViaTwoGroups(t *testing.T) {
 	})
 
 	t.Run("Grant", func(t *testing.T) {
-		_, err := server.Grant(ctx, &pb.GrantRequest{
+		_, err := s.Grant(ctx, &pb.GrantRequest{
 			Subject: string(alice),
 			Role:    "member",
 			Object:  string(superadmins),
 		})
 		require.NoError(t, err)
 
-		_, err = server.Grant(ctx, &pb.GrantRequest{
+		_, err = s.Grant(ctx, &pb.GrantRequest{
 			Subject: string(admins),
 			Role:    "owner",
 			Object:  string(banana),
 		})
 		require.NoError(t, err)
 
-		_, err = server.Grant(ctx, &pb.GrantRequest{
+		_, err = s.Grant(ctx, &pb.GrantRequest{
 			Subject: string(superadmins),
 			Role:    "member",
 			Object:  string(admins),
@@ -227,7 +209,7 @@ func TestCheckViaTwoGroups(t *testing.T) {
 	})
 
 	t.Run("Success: Check after granting", func(t *testing.T) {
-		res, err := server.Check(ctx, &pb.CheckRequest{
+		res, err := s.Check(ctx, &pb.CheckRequest{
 			Subject: string(alice),
 			Verb:    "eat",
 			Object:  string(banana),
@@ -240,13 +222,7 @@ func TestCheckViaTwoGroups(t *testing.T) {
 func TestCheckViaThreeGroups(t *testing.T) {
 	cleanup(conn)
 
-	changes := db.NewChanges(conn)
-	objects := db.NewObjects(conn)
-	relations := db.NewRelations(conn)
-	roles := db.NewRoles(conn)
-	tuples := db.NewTuples(conn)
-
-	server := NewDoorman(changes, relations, roles, tuples)
+	s := NewDoorman(conn)
 	ctx := context.Background()
 
 	alice := doorman.Object("user:alice")
@@ -263,16 +239,16 @@ func TestCheckViaThreeGroups(t *testing.T) {
 	}
 	banana := doorman.Object("item:banana")
 
-	require.NoError(t, objects.Add(ctx, alice))
-	require.NoError(t, objects.Add(ctx, duperadmins))
-	require.NoError(t, objects.Add(ctx, superadmins))
-	require.NoError(t, objects.Add(ctx, admins))
-	require.NoError(t, objects.Add(ctx, banana))
-	require.NoError(t, roles.Add(ctx, member))
-	require.NoError(t, roles.Add(ctx, owner))
+	require.NoError(t, s.objects.Add(ctx, alice))
+	require.NoError(t, s.objects.Add(ctx, duperadmins))
+	require.NoError(t, s.objects.Add(ctx, superadmins))
+	require.NoError(t, s.objects.Add(ctx, admins))
+	require.NoError(t, s.objects.Add(ctx, banana))
+	require.NoError(t, s.roles.Add(ctx, member))
+	require.NoError(t, s.roles.Add(ctx, owner))
 
 	t.Run("Failure: Check before granting", func(t *testing.T) {
-		res, err := server.Check(ctx, &pb.CheckRequest{
+		res, err := s.Check(ctx, &pb.CheckRequest{
 			Subject: string(alice),
 			Verb:    "eat",
 			Object:  string(banana),
@@ -282,28 +258,28 @@ func TestCheckViaThreeGroups(t *testing.T) {
 	})
 
 	t.Run("Grant", func(t *testing.T) {
-		_, err := server.Grant(ctx, &pb.GrantRequest{
+		_, err := s.Grant(ctx, &pb.GrantRequest{
 			Subject: string(superadmins),
 			Role:    "member",
 			Object:  string(admins),
 		})
 		require.NoError(t, err)
 
-		_, err = server.Grant(ctx, &pb.GrantRequest{
+		_, err = s.Grant(ctx, &pb.GrantRequest{
 			Subject: string(duperadmins),
 			Role:    "member",
 			Object:  string(superadmins),
 		})
 		require.NoError(t, err)
 
-		_, err = server.Grant(ctx, &pb.GrantRequest{
+		_, err = s.Grant(ctx, &pb.GrantRequest{
 			Subject: string(alice),
 			Role:    "member",
 			Object:  string(duperadmins),
 		})
 		require.NoError(t, err)
 
-		_, err = server.Grant(ctx, &pb.GrantRequest{
+		_, err = s.Grant(ctx, &pb.GrantRequest{
 			Subject: string(admins),
 			Role:    "owner",
 			Object:  string(banana),
@@ -313,7 +289,7 @@ func TestCheckViaThreeGroups(t *testing.T) {
 	})
 
 	t.Run("Success: Check after granting", func(t *testing.T) {
-		res, err := server.Check(ctx, &pb.CheckRequest{
+		res, err := s.Check(ctx, &pb.CheckRequest{
 			Subject: string(alice),
 			Verb:    "eat",
 			Object:  string(banana),
@@ -326,13 +302,7 @@ func TestCheckViaThreeGroups(t *testing.T) {
 func TestCheckViaThreeGroupsGrantedInParallel(t *testing.T) {
 	cleanup(conn)
 
-	changes := db.NewChanges(conn)
-	objects := db.NewObjects(conn)
-	relations := db.NewRelations(conn)
-	roles := db.NewRoles(conn)
-	tuples := db.NewTuples(conn)
-
-	server := NewDoorman(changes, relations, roles, tuples)
+	s := NewDoorman(conn)
 	ctx := context.Background()
 
 	alice := doorman.Object("user:alice")
@@ -349,16 +319,16 @@ func TestCheckViaThreeGroupsGrantedInParallel(t *testing.T) {
 	}
 	banana := doorman.Object("item:banana")
 
-	require.NoError(t, objects.Add(ctx, alice))
-	require.NoError(t, objects.Add(ctx, duperadmins))
-	require.NoError(t, objects.Add(ctx, superadmins))
-	require.NoError(t, objects.Add(ctx, admins))
-	require.NoError(t, objects.Add(ctx, banana))
-	require.NoError(t, roles.Add(ctx, member))
-	require.NoError(t, roles.Add(ctx, owner))
+	require.NoError(t, s.objects.Add(ctx, alice))
+	require.NoError(t, s.objects.Add(ctx, duperadmins))
+	require.NoError(t, s.objects.Add(ctx, superadmins))
+	require.NoError(t, s.objects.Add(ctx, admins))
+	require.NoError(t, s.objects.Add(ctx, banana))
+	require.NoError(t, s.roles.Add(ctx, member))
+	require.NoError(t, s.roles.Add(ctx, owner))
 
 	t.Run("Failure: Check before granting", func(t *testing.T) {
-		res, err := server.Check(ctx, &pb.CheckRequest{
+		res, err := s.Check(ctx, &pb.CheckRequest{
 			Subject: string(alice),
 			Verb:    "eat",
 			Object:  string(banana),
@@ -371,7 +341,7 @@ func TestCheckViaThreeGroupsGrantedInParallel(t *testing.T) {
 		var g errgroup.Group
 
 		g.Go(func() error {
-			_, err := server.Grant(ctx, &pb.GrantRequest{
+			_, err := s.Grant(ctx, &pb.GrantRequest{
 				Subject: string(alice),
 				Role:    "member",
 				Object:  string(duperadmins),
@@ -380,7 +350,7 @@ func TestCheckViaThreeGroupsGrantedInParallel(t *testing.T) {
 		})
 
 		g.Go(func() error {
-			_, err := server.Grant(ctx, &pb.GrantRequest{
+			_, err := s.Grant(ctx, &pb.GrantRequest{
 				Subject: string(duperadmins),
 				Role:    "member",
 				Object:  string(superadmins),
@@ -389,7 +359,7 @@ func TestCheckViaThreeGroupsGrantedInParallel(t *testing.T) {
 		})
 
 		g.Go(func() error {
-			_, err := server.Grant(ctx, &pb.GrantRequest{
+			_, err := s.Grant(ctx, &pb.GrantRequest{
 				Subject: string(superadmins),
 				Role:    "member",
 				Object:  string(admins),
@@ -398,7 +368,7 @@ func TestCheckViaThreeGroupsGrantedInParallel(t *testing.T) {
 		})
 
 		g.Go(func() error {
-			_, err := server.Grant(ctx, &pb.GrantRequest{
+			_, err := s.Grant(ctx, &pb.GrantRequest{
 				Subject: string(admins),
 				Role:    "owner",
 				Object:  string(banana),
@@ -410,7 +380,7 @@ func TestCheckViaThreeGroupsGrantedInParallel(t *testing.T) {
 	})
 
 	t.Run("Success: Check after granting", func(t *testing.T) {
-		res, err := server.Check(ctx, &pb.CheckRequest{
+		res, err := s.Check(ctx, &pb.CheckRequest{
 			Subject: string(alice),
 			Verb:    "eat",
 			Object:  string(banana),
@@ -423,13 +393,7 @@ func TestCheckViaThreeGroupsGrantedInParallel(t *testing.T) {
 func TestCheckViaGroop(t *testing.T) {
 	cleanup(conn)
 
-	changes := db.NewChanges(conn)
-	objects := db.NewObjects(conn)
-	relations := db.NewRelations(conn)
-	roles := db.NewRoles(conn)
-	tuples := db.NewTuples(conn)
-
-	server := NewDoorman(changes, relations, roles, tuples)
+	s := NewDoorman(conn)
 	ctx := context.Background()
 
 	alice := doorman.Object("user:alice")
@@ -444,14 +408,14 @@ func TestCheckViaGroop(t *testing.T) {
 	}
 	banana := doorman.Object("item:banana")
 
-	require.NoError(t, objects.Add(ctx, alice))
-	require.NoError(t, objects.Add(ctx, admins))
-	require.NoError(t, objects.Add(ctx, banana))
-	require.NoError(t, roles.Add(ctx, member))
-	require.NoError(t, roles.Add(ctx, owner))
+	require.NoError(t, s.objects.Add(ctx, alice))
+	require.NoError(t, s.objects.Add(ctx, admins))
+	require.NoError(t, s.objects.Add(ctx, banana))
+	require.NoError(t, s.roles.Add(ctx, member))
+	require.NoError(t, s.roles.Add(ctx, owner))
 
 	t.Run("Failure: Check before granting", func(t *testing.T) {
-		res, err := server.Check(ctx, &pb.CheckRequest{
+		res, err := s.Check(ctx, &pb.CheckRequest{
 			Subject: string(alice),
 			Verb:    "eat",
 			Object:  string(banana),
@@ -461,14 +425,14 @@ func TestCheckViaGroop(t *testing.T) {
 	})
 
 	t.Run("Grant", func(t *testing.T) {
-		_, err := server.Grant(ctx, &pb.GrantRequest{
+		_, err := s.Grant(ctx, &pb.GrantRequest{
 			Subject: string(alice),
 			Role:    "member",
 			Object:  string(admins),
 		})
 		require.NoError(t, err)
 
-		_, err = server.Grant(ctx, &pb.GrantRequest{
+		_, err = s.Grant(ctx, &pb.GrantRequest{
 			Subject: string(admins),
 			Role:    "owner",
 			Object:  string(banana),
@@ -477,7 +441,7 @@ func TestCheckViaGroop(t *testing.T) {
 	})
 
 	t.Run("Success: Check after granting", func(t *testing.T) {
-		res, err := server.Check(ctx, &pb.CheckRequest{
+		res, err := s.Check(ctx, &pb.CheckRequest{
 			Subject: string(alice),
 			Verb:    "eat",
 			Object:  string(banana),
@@ -490,13 +454,7 @@ func TestCheckViaGroop(t *testing.T) {
 func TestCheckViaGroupAndGroop(t *testing.T) {
 	cleanup(conn)
 
-	changes := db.NewChanges(conn)
-	objects := db.NewObjects(conn)
-	relations := db.NewRelations(conn)
-	roles := db.NewRoles(conn)
-	tuples := db.NewTuples(conn)
-
-	server := NewDoorman(changes, relations, roles, tuples)
+	s := NewDoorman(conn)
 	ctx := context.Background()
 
 	alice := doorman.Object("user:alice")
@@ -510,16 +468,16 @@ func TestCheckViaGroupAndGroop(t *testing.T) {
 	}
 	banana := doorman.Object("item:banana")
 
-	require.NoError(t, objects.Add(ctx, alice))
-	require.NoError(t, objects.Add(ctx, superadmins))
-	require.NoError(t, objects.Add(ctx, admins))
-	require.NoError(t, objects.Add(ctx, banana))
-	require.NoError(t, roles.Add(ctx, groupMember))
-	require.NoError(t, roles.Add(ctx, groopMember))
-	require.NoError(t, roles.Add(ctx, owner))
+	require.NoError(t, s.objects.Add(ctx, alice))
+	require.NoError(t, s.objects.Add(ctx, superadmins))
+	require.NoError(t, s.objects.Add(ctx, admins))
+	require.NoError(t, s.objects.Add(ctx, banana))
+	require.NoError(t, s.roles.Add(ctx, groupMember))
+	require.NoError(t, s.roles.Add(ctx, groopMember))
+	require.NoError(t, s.roles.Add(ctx, owner))
 
 	t.Run("Failure: Check before granting", func(t *testing.T) {
-		res, err := server.Check(ctx, &pb.CheckRequest{
+		res, err := s.Check(ctx, &pb.CheckRequest{
 			Subject: string(alice),
 			Verb:    "eat",
 			Object:  string(banana),
@@ -529,21 +487,21 @@ func TestCheckViaGroupAndGroop(t *testing.T) {
 	})
 
 	t.Run("Grant", func(t *testing.T) {
-		_, err := server.Grant(ctx, &pb.GrantRequest{
+		_, err := s.Grant(ctx, &pb.GrantRequest{
 			Subject: string(admins),
 			Role:    "owner",
 			Object:  string(banana),
 		})
 		require.NoError(t, err)
 
-		_, err = server.Grant(ctx, &pb.GrantRequest{
+		_, err = s.Grant(ctx, &pb.GrantRequest{
 			Subject: string(superadmins),
 			Role:    "member",
 			Object:  string(admins),
 		})
 		require.NoError(t, err)
 
-		_, err = server.Grant(ctx, &pb.GrantRequest{
+		_, err = s.Grant(ctx, &pb.GrantRequest{
 			Subject: string(alice),
 			Role:    "member",
 			Object:  string(superadmins),
@@ -552,7 +510,7 @@ func TestCheckViaGroupAndGroop(t *testing.T) {
 	})
 
 	t.Run("Success: Check after granting", func(t *testing.T) {
-		res, err := server.Check(ctx, &pb.CheckRequest{
+		res, err := s.Check(ctx, &pb.CheckRequest{
 			Subject: string(alice),
 			Verb:    "eat",
 			Object:  string(banana),
@@ -566,13 +524,7 @@ func TestCheckViaGroupAndGroop(t *testing.T) {
 func TestConnectingToSelfFails(t *testing.T) {
 	cleanup(conn)
 
-	changes := db.NewChanges(conn)
-	objects := db.NewObjects(conn)
-	relations := db.NewRelations(conn)
-	roles := db.NewRoles(conn)
-	tuples := db.NewTuples(conn)
-
-	server := NewDoorman(changes, relations, roles, tuples)
+	s := NewDoorman(conn)
 	ctx := context.Background()
 
 	groupMember := doorman.Role{ID: "group:member", Verbs: []doorman.Verb{"foo"}}
@@ -583,12 +535,12 @@ func TestConnectingToSelfFails(t *testing.T) {
 	}
 	banana := doorman.Object("item:banana")
 
-	require.NoError(t, objects.Add(ctx, admins))
-	require.NoError(t, objects.Add(ctx, banana))
-	require.NoError(t, roles.Add(ctx, groupMember))
-	require.NoError(t, roles.Add(ctx, owner))
+	require.NoError(t, s.objects.Add(ctx, admins))
+	require.NoError(t, s.objects.Add(ctx, banana))
+	require.NoError(t, s.roles.Add(ctx, groupMember))
+	require.NoError(t, s.roles.Add(ctx, owner))
 
-	_, err := server.Grant(ctx, &pb.GrantRequest{
+	_, err := s.Grant(ctx, &pb.GrantRequest{
 		Subject: string(admins),
 		Role:    "owner",
 		Object:  string(banana),
@@ -596,7 +548,7 @@ func TestConnectingToSelfFails(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Run("Fails directly", func(t *testing.T) {
-		_, err := server.Grant(ctx, &pb.GrantRequest{
+		_, err := s.Grant(ctx, &pb.GrantRequest{
 			Subject: string(banana),
 			Role:    "owner",
 			Object:  string(banana),
@@ -605,7 +557,7 @@ func TestConnectingToSelfFails(t *testing.T) {
 	})
 
 	t.Run("Fails indirectly", func(t *testing.T) {
-		_, err := server.Grant(ctx, &pb.GrantRequest{
+		_, err := s.Grant(ctx, &pb.GrantRequest{
 			Subject: string(banana),
 			Role:    "member",
 			Object:  string(admins),
@@ -617,13 +569,7 @@ func TestConnectingToSelfFails(t *testing.T) {
 func TestConnectingToSelfIndirectlyInParallelFails(t *testing.T) {
 	cleanup(conn)
 
-	changes := db.NewChanges(conn)
-	objects := db.NewObjects(conn)
-	relations := db.NewRelations(conn)
-	roles := db.NewRoles(conn)
-	tuples := db.NewTuples(conn)
-
-	server := NewDoorman(changes, relations, roles, tuples)
+	s := NewDoorman(conn)
 	ctx := context.Background()
 
 	groupMember := doorman.Role{ID: "group:member", Verbs: []doorman.Verb{"foo"}}
@@ -634,10 +580,10 @@ func TestConnectingToSelfIndirectlyInParallelFails(t *testing.T) {
 	}
 	banana := doorman.Object("item:banana")
 
-	require.NoError(t, objects.Add(ctx, admins))
-	require.NoError(t, objects.Add(ctx, banana))
-	require.NoError(t, roles.Add(ctx, groupMember))
-	require.NoError(t, roles.Add(ctx, owner))
+	require.NoError(t, s.objects.Add(ctx, admins))
+	require.NoError(t, s.objects.Add(ctx, banana))
+	require.NoError(t, s.roles.Add(ctx, groupMember))
+	require.NoError(t, s.roles.Add(ctx, owner))
 
 	// run many times as failing cound happen at random
 	for i := 0; i < 100; i++ {
@@ -645,7 +591,7 @@ func TestConnectingToSelfIndirectlyInParallelFails(t *testing.T) {
 
 		var g errgroup.Group
 		g.Go(func() error {
-			_, err := server.Grant(ctx, &pb.GrantRequest{
+			_, err := s.Grant(ctx, &pb.GrantRequest{
 				Subject: string(banana),
 				Role:    "member",
 				Object:  string(admins),
@@ -653,7 +599,7 @@ func TestConnectingToSelfIndirectlyInParallelFails(t *testing.T) {
 			return err
 		})
 		g.Go(func() error {
-			_, err := server.Grant(ctx, &pb.GrantRequest{
+			_, err := s.Grant(ctx, &pb.GrantRequest{
 				Subject: string(admins),
 				Role:    "owner",
 				Object:  string(banana),
@@ -669,13 +615,7 @@ func TestConnectingToSelfIndirectlyInParallelFails(t *testing.T) {
 func TestCheckRevoke(t *testing.T) {
 	cleanup(conn)
 
-	changes := db.NewChanges(conn)
-	objects := db.NewObjects(conn)
-	relations := db.NewRelations(conn)
-	roles := db.NewRoles(conn)
-	tuples := db.NewTuples(conn)
-
-	server := NewDoorman(changes, relations, roles, tuples)
+	s := NewDoorman(conn)
 	ctx := context.Background()
 
 	alice := doorman.Object("user:alice")
@@ -685,11 +625,11 @@ func TestCheckRevoke(t *testing.T) {
 	}
 	banana := doorman.Object("item:banana")
 
-	require.NoError(t, objects.Add(ctx, alice))
-	require.NoError(t, objects.Add(ctx, banana))
-	require.NoError(t, roles.Add(ctx, owner))
+	require.NoError(t, s.objects.Add(ctx, alice))
+	require.NoError(t, s.objects.Add(ctx, banana))
+	require.NoError(t, s.roles.Add(ctx, owner))
 
-	_, err := server.Grant(ctx, &pb.GrantRequest{
+	_, err := s.Grant(ctx, &pb.GrantRequest{
 		Subject: string(alice),
 		Role:    "owner",
 		Object:  string(banana),
@@ -697,7 +637,7 @@ func TestCheckRevoke(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Run("Success: Check before revoking", func(t *testing.T) {
-		res, err := server.Check(ctx, &pb.CheckRequest{
+		res, err := s.Check(ctx, &pb.CheckRequest{
 			Subject: string(alice),
 			Verb:    "eat",
 			Object:  string(banana),
@@ -707,7 +647,7 @@ func TestCheckRevoke(t *testing.T) {
 	})
 
 	t.Run("Successful revoke of existing role", func(t *testing.T) {
-		_, err = server.Revoke(ctx, &pb.RevokeRequest{
+		_, err = s.Revoke(ctx, &pb.RevokeRequest{
 			Subject: string(alice),
 			Role:    "owner",
 			Object:  string(banana),
@@ -716,7 +656,7 @@ func TestCheckRevoke(t *testing.T) {
 	})
 
 	t.Run("Faiure revoking same role twice (non-idempotent)", func(t *testing.T) {
-		_, err = server.Revoke(ctx, &pb.RevokeRequest{
+		_, err = s.Revoke(ctx, &pb.RevokeRequest{
 			Subject: string(alice),
 			Role:    "owner",
 			Object:  string(banana),
@@ -725,7 +665,7 @@ func TestCheckRevoke(t *testing.T) {
 	})
 
 	t.Run("Failure: Check after revoking", func(t *testing.T) {
-		res, err := server.Check(ctx, &pb.CheckRequest{
+		res, err := s.Check(ctx, &pb.CheckRequest{
 			Subject: string(alice),
 			Verb:    "eat",
 			Object:  string(banana),
@@ -738,13 +678,7 @@ func TestCheckRevoke(t *testing.T) {
 func TestCheckRevokeOneOfTwo(t *testing.T) {
 	cleanup(conn)
 
-	changes := db.NewChanges(conn)
-	objects := db.NewObjects(conn)
-	relations := db.NewRelations(conn)
-	roles := db.NewRoles(conn)
-	tuples := db.NewTuples(conn)
-
-	server := NewDoorman(changes, relations, roles, tuples)
+	s := NewDoorman(conn)
 	ctx := context.Background()
 
 	alice := doorman.Object("user:alice")
@@ -758,19 +692,19 @@ func TestCheckRevokeOneOfTwo(t *testing.T) {
 	}
 	banana := doorman.Object("item:banana")
 
-	require.NoError(t, objects.Add(ctx, alice))
-	require.NoError(t, objects.Add(ctx, banana))
-	require.NoError(t, roles.Add(ctx, owner))
-	require.NoError(t, roles.Add(ctx, eater))
+	require.NoError(t, s.objects.Add(ctx, alice))
+	require.NoError(t, s.objects.Add(ctx, banana))
+	require.NoError(t, s.roles.Add(ctx, owner))
+	require.NoError(t, s.roles.Add(ctx, eater))
 
-	_, err := server.Grant(ctx, &pb.GrantRequest{
+	_, err := s.Grant(ctx, &pb.GrantRequest{
 		Subject: string(alice),
 		Role:    "owner",
 		Object:  string(banana),
 	})
 	require.NoError(t, err)
 
-	_, err = server.Grant(ctx, &pb.GrantRequest{
+	_, err = s.Grant(ctx, &pb.GrantRequest{
 		Subject: string(alice),
 		Role:    "eater",
 		Object:  string(banana),
@@ -778,7 +712,7 @@ func TestCheckRevokeOneOfTwo(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Run("Success: Check before revoking", func(t *testing.T) {
-		res, err := server.Check(ctx, &pb.CheckRequest{
+		res, err := s.Check(ctx, &pb.CheckRequest{
 			Subject: string(alice),
 			Verb:    "eat",
 			Object:  string(banana),
@@ -787,8 +721,8 @@ func TestCheckRevokeOneOfTwo(t *testing.T) {
 		require.Equal(t, true, res.Success)
 	})
 
-	t.Run("Successful revoke of one of two roles", func(t *testing.T) {
-		_, err = server.Revoke(ctx, &pb.RevokeRequest{
+	t.Run("Successful revoke of one of two s.roles", func(t *testing.T) {
+		_, err = s.Revoke(ctx, &pb.RevokeRequest{
 			Subject: string(alice),
 			Role:    "eater",
 			Object:  string(banana),
@@ -797,7 +731,7 @@ func TestCheckRevokeOneOfTwo(t *testing.T) {
 	})
 
 	t.Run("Success: Check after revoking", func(t *testing.T) {
-		res, err := server.Check(ctx, &pb.CheckRequest{
+		res, err := s.Check(ctx, &pb.CheckRequest{
 			Subject: string(alice),
 			Verb:    "eat",
 			Object:  string(banana),
@@ -810,13 +744,7 @@ func TestCheckRevokeOneOfTwo(t *testing.T) {
 func TestCheckUpdateRole(t *testing.T) {
 	cleanup(conn)
 
-	changes := db.NewChanges(conn)
-	objects := db.NewObjects(conn)
-	relations := db.NewRelations(conn)
-	roles := db.NewRoles(conn)
-	tuples := db.NewTuples(conn)
-
-	server := NewDoorman(changes, relations, roles, tuples)
+	s := NewDoorman(conn)
 	ctx := context.Background()
 
 	alice := doorman.Object("user:alice")
@@ -826,11 +754,11 @@ func TestCheckUpdateRole(t *testing.T) {
 	}
 	banana := doorman.Object("item:banana")
 
-	require.NoError(t, objects.Add(ctx, alice))
-	require.NoError(t, objects.Add(ctx, banana))
-	require.NoError(t, roles.Add(ctx, owner))
+	require.NoError(t, s.objects.Add(ctx, alice))
+	require.NoError(t, s.objects.Add(ctx, banana))
+	require.NoError(t, s.roles.Add(ctx, owner))
 
-	_, err := server.Grant(ctx, &pb.GrantRequest{
+	_, err := s.Grant(ctx, &pb.GrantRequest{
 		Subject: string(alice),
 		Role:    "owner",
 		Object:  string(banana),
@@ -838,7 +766,7 @@ func TestCheckUpdateRole(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Run("Check before revoking", func(t *testing.T) {
-		res, err := server.Check(ctx, &pb.CheckRequest{
+		res, err := s.Check(ctx, &pb.CheckRequest{
 			Subject: string(alice),
 			Verb:    "eat",
 			Object:  string(banana),
@@ -846,7 +774,7 @@ func TestCheckUpdateRole(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Equal(t, true, res.Success)
 
-		res, err = server.Check(ctx, &pb.CheckRequest{
+		res, err = s.Check(ctx, &pb.CheckRequest{
 			Subject: string(alice),
 			Verb:    "drink",
 			Object:  string(banana),
@@ -855,14 +783,14 @@ func TestCheckUpdateRole(t *testing.T) {
 		assert.Equal(t, false, res.Success)
 	})
 
-	_, err = server.UpsertRole(ctx, &pb.UpsertRoleRequest{
+	_, err = s.UpsertRole(ctx, &pb.UpsertRoleRequest{
 		Id:    owner.ID,
 		Verbs: []string{"drink"},
 	})
 	require.NoError(t, err)
 
 	t.Run("Check after revoking", func(t *testing.T) {
-		res, err := server.Check(ctx, &pb.CheckRequest{
+		res, err := s.Check(ctx, &pb.CheckRequest{
 			Subject: string(alice),
 			Verb:    "eat",
 			Object:  string(banana),
@@ -870,7 +798,7 @@ func TestCheckUpdateRole(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Equal(t, false, res.Success)
 
-		res, err = server.Check(ctx, &pb.CheckRequest{
+		res, err = s.Check(ctx, &pb.CheckRequest{
 			Subject: string(alice),
 			Verb:    "drink",
 			Object:  string(banana),
@@ -883,23 +811,17 @@ func TestCheckUpdateRole(t *testing.T) {
 func TestCheckUpsertRoleCreate(t *testing.T) {
 	cleanup(conn)
 
-	changes := db.NewChanges(conn)
-	objects := db.NewObjects(conn)
-	relations := db.NewRelations(conn)
-	roles := db.NewRoles(conn)
-	tuples := db.NewTuples(conn)
-
-	server := NewDoorman(changes, relations, roles, tuples)
+	s := NewDoorman(conn)
 	ctx := context.Background()
 
 	alice := doorman.Object("user:alice")
 	banana := doorman.Object("item:banana")
 
-	require.NoError(t, objects.Add(ctx, alice))
-	require.NoError(t, objects.Add(ctx, banana))
+	require.NoError(t, s.objects.Add(ctx, alice))
+	require.NoError(t, s.objects.Add(ctx, banana))
 
 	t.Run("Failed to grant before role is created", func(t *testing.T) {
-		_, err := server.Grant(ctx, &pb.GrantRequest{
+		_, err := s.Grant(ctx, &pb.GrantRequest{
 			Subject: string(alice),
 			Role:    "owner",
 			Object:  string(banana),
@@ -907,14 +829,14 @@ func TestCheckUpsertRoleCreate(t *testing.T) {
 		require.Error(t, err)
 	})
 
-	_, err := server.UpsertRole(ctx, &pb.UpsertRoleRequest{
+	_, err := s.UpsertRole(ctx, &pb.UpsertRoleRequest{
 		Id:    "item:owner",
 		Verbs: []string{"drink"},
 	})
 	require.NoError(t, err)
 
 	t.Run("Success grant after role is created", func(t *testing.T) {
-		_, err := server.Grant(ctx, &pb.GrantRequest{
+		_, err := s.Grant(ctx, &pb.GrantRequest{
 			Subject: string(alice),
 			Role:    "owner",
 			Object:  string(banana),
@@ -926,13 +848,7 @@ func TestCheckUpsertRoleCreate(t *testing.T) {
 func TestRemoveRole(t *testing.T) {
 	cleanup(conn)
 
-	changes := db.NewChanges(conn)
-	relations := db.NewRelations(conn)
-	objects := db.NewObjects(conn)
-	roles := db.NewRoles(conn)
-	tuples := db.NewTuples(conn)
-
-	server := NewDoorman(changes, relations, roles, tuples)
+	s := NewDoorman(conn)
 	ctx := context.Background()
 
 	alice := doorman.Object("user:alice")
@@ -942,11 +858,11 @@ func TestRemoveRole(t *testing.T) {
 	}
 	banana := doorman.Object("item:banana")
 
-	require.NoError(t, objects.Add(ctx, alice))
-	require.NoError(t, roles.Add(ctx, owner))
-	require.NoError(t, objects.Add(ctx, banana))
+	require.NoError(t, s.objects.Add(ctx, alice))
+	require.NoError(t, s.roles.Add(ctx, owner))
+	require.NoError(t, s.objects.Add(ctx, banana))
 
-	_, err := server.Grant(ctx, &pb.GrantRequest{
+	_, err := s.Grant(ctx, &pb.GrantRequest{
 		Subject: string(alice),
 		Role:    "owner",
 		Object:  string(banana),
@@ -954,7 +870,7 @@ func TestRemoveRole(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Run("Can access role before removing", func(t *testing.T) {
-		res, err := server.Check(ctx, &pb.CheckRequest{
+		res, err := s.Check(ctx, &pb.CheckRequest{
 			Subject: string(alice),
 			Verb:    "eat",
 			Object:  string(banana),
@@ -964,21 +880,21 @@ func TestRemoveRole(t *testing.T) {
 	})
 
 	t.Run("Success removing role", func(t *testing.T) {
-		_, err := server.RemoveRole(ctx, &pb.RemoveRoleRequest{
+		_, err := s.RemoveRole(ctx, &pb.RemoveRoleRequest{
 			Id: "item:owner",
 		})
 		require.NoError(t, err)
 	})
 
 	t.Run("Fails to remove role again", func(t *testing.T) {
-		_, err := server.RemoveRole(ctx, &pb.RemoveRoleRequest{
+		_, err := s.RemoveRole(ctx, &pb.RemoveRoleRequest{
 			Id: "item:owner",
 		})
 		require.Error(t, err)
 	})
 
 	t.Run("Removed existing tuples with the role", func(t *testing.T) {
-		res, err := server.Check(ctx, &pb.CheckRequest{
+		res, err := s.Check(ctx, &pb.CheckRequest{
 			Subject: string(alice),
 			Verb:    "eat",
 			Object:  string(banana),

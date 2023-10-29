@@ -10,7 +10,11 @@ import (
 )
 
 type Roles struct {
-	pool *pgxpool.Pool
+	conn querier
+}
+
+func (r Roles) WithTx(tx pgx.Tx) *Roles {
+	return &Roles{conn: tx}
 }
 
 func (r Roles) Add(ctx context.Context, role doorman.Role) error {
@@ -19,7 +23,7 @@ func (r Roles) Add(ctx context.Context, role doorman.Role) error {
 		values($1, $2)
 	`
 
-	if _, err := r.pool.Exec(ctx, query, role.ID, role.Verbs); err != nil {
+	if _, err := r.conn.Exec(ctx, query, role.ID, role.Verbs); err != nil {
 		return err
 	}
 
@@ -35,7 +39,7 @@ func (r Roles) Retrieve(ctx context.Context, id string) (*doorman.Role, error) {
 
 	role := doorman.Role{ID: id}
 
-	err := r.pool.QueryRow(ctx, query, id).Scan(&role.Verbs)
+	err := r.conn.QueryRow(ctx, query, id).Scan(&role.Verbs)
 	if err != nil {
 		if err == pgx.ErrNoRows {
 			return nil, ErrInvalidRole
@@ -51,7 +55,7 @@ func (r Roles) Remove(ctx context.Context, id string) error {
 		delete from roles where id=$1
 	`
 
-	if _, err := r.pool.Exec(ctx, query, id); err != nil {
+	if _, err := r.conn.Exec(ctx, query, id); err != nil {
 		return fmt.Errorf("exec failed: %w", err)
 	}
 
@@ -66,7 +70,7 @@ func (r Roles) Upsert(ctx context.Context, role *doorman.Role) error {
 			set verbs = $2
 	`
 
-	if _, err := r.pool.Exec(ctx, query, role.ID, role.Verbs); err != nil {
+	if _, err := r.conn.Exec(ctx, query, role.ID, role.Verbs); err != nil {
 		return fmt.Errorf("exec failed: %w", err)
 	}
 

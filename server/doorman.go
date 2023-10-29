@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/td0m/doorman"
 	"github.com/td0m/doorman/db"
 	pb "github.com/td0m/doorman/gen/go"
@@ -12,6 +14,8 @@ import (
 
 type Doorman struct {
 	*pb.UnimplementedDoormanServer
+
+	conn *pgxpool.Pool
 
 	relations db.Relations
 	changes   db.Changes
@@ -34,24 +38,50 @@ func (d *Doorman) Check(ctx context.Context, request *pb.CheckRequest) (*pb.Chec
 }
 
 func (d *Doorman) Grant(ctx context.Context, request *pb.GrantRequest) (*pb.GrantResponse, error) {
+	tx, err := d.conn.Begin(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("begin tx failed: %w", err)
+	}
+
+	res, err := d.grantWithTx(ctx, tx, request)
+	if err != nil {
+		return nil, fmt.Errorf("grantWithTx failed: %w", err)
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return nil, fmt.Errorf("tx.Commit failed: %w", err)
+	}
+
+	return res, nil
+}
+
+func (d *Doorman) grantWithTx(ctx context.Context, tx pgx.Tx, request *pb.GrantRequest) (*pb.GrantResponse, error) {
+	if err := d.tuples.WithTx(tx).Lock(ctx); err != nil {
+		return nil, fmt.Errorf("tuples.Lock failed: %w, %w", err, tx.Rollback(ctx))
+	}
+
 	tuple := doorman.Tuple{
 		Subject: doorman.Object(request.Subject),
 		Role:    doorman.Object(request.Object).Type() + ":" + request.Role,
 		Object:  doorman.Object(request.Object),
 	}
-	newTuples, err := d.tuples.Add(ctx, tuple)
-	if err != nil {
-		return nil, fmt.Errorf("tuples.Add failed: %w", err)
+	if err := d.tuples.WithTx(tx).Add(ctx, tuple); err != nil {
+		return nil, fmt.Errorf("tuples.Add failed: %w, %w", err, tx.Rollback(ctx))
 	}
 
-	relations, err := doorman.TuplesToRelations(ctx, newTuples, d.roles.Retrieve)
+	newTuples, err := d.tuples.WithTx(tx).DependentOn(ctx, tuple)
 	if err != nil {
-		return nil, fmt.Errorf("TuplesToRelations failed: %w", err)
+		return nil, fmt.Errorf("tuples.DependentOn failed: %w, %w", err, tx.Rollback(ctx))
 	}
 
-	for _, r := range relations {
-		if err := d.relations.Add(ctx, r); err != nil {
-			return nil, fmt.Errorf("failed to add relation %+v: %w", r, err)
+	newRelations, err := doorman.TuplesToRelations(ctx, newTuples, d.roles.Retrieve)
+	if err != nil {
+		return nil, fmt.Errorf("TuplesToRelations failed: %w, %w", err, tx.Rollback(ctx))
+	}
+
+	for _, r := range newRelations {
+		if err := d.relations.WithTx(tx).Add(ctx, r); err != nil {
+			return nil, fmt.Errorf("failed to add relation %+v: %w %w", r, err, tx.Rollback(ctx))
 		}
 	}
 
@@ -59,24 +89,50 @@ func (d *Doorman) Grant(ctx context.Context, request *pb.GrantRequest) (*pb.Gran
 }
 
 func (d *Doorman) Revoke(ctx context.Context, request *pb.RevokeRequest) (*pb.RevokeResponse, error) {
+	tx, err := d.conn.Begin(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("begin tx failed: %w", err)
+	}
+
+	res, err := d.revokeWithTx(ctx, tx, request)
+	if err != nil {
+		return nil, fmt.Errorf("revokeWithTx failed: %w", err)
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return nil, fmt.Errorf("tx.Commit failed: %w", err)
+	}
+
+	return res, nil
+}
+
+func (d *Doorman) revokeWithTx(ctx context.Context, tx pgx.Tx, request *pb.RevokeRequest) (*pb.RevokeResponse, error) {
+	if err := d.tuples.WithTx(tx).Lock(ctx); err != nil {
+		return nil, fmt.Errorf("tuples.Lock failed: %w, %w", err, tx.Rollback(ctx))
+	}
+
 	tuple := doorman.Tuple{
 		Subject: doorman.Object(request.Subject),
 		Role:    doorman.Object(request.Object).Type() + ":" + request.Role,
 		Object:  doorman.Object(request.Object),
 	}
-	removedTuples, err := d.tuples.Remove(ctx, tuple)
-	if err != nil {
-		return nil, fmt.Errorf("tuples.Remove failed: %w", err)
+	if err := d.tuples.WithTx(tx).Remove(ctx, tuple); err != nil {
+		return nil, fmt.Errorf("tuples.Remove failed: %w, %w", err, tx.Rollback(ctx))
 	}
 
-	relations, err := doorman.TuplesToRelations(ctx, removedTuples, d.roles.Retrieve)
+	removedTuples, err := d.tuples.WithTx(tx).DependentOn(ctx, tuple)
 	if err != nil {
-		return nil, fmt.Errorf("TuplesToRelations failed: %w", err)
+		return nil, fmt.Errorf("tuples.DependentOn failed: %w, %w", err, tx.Rollback(ctx))
 	}
 
-	for _, r := range relations {
-		if err := d.relations.Remove(ctx, r); err != nil {
-			return nil, fmt.Errorf("failed to remove relation %+v: %w", r, err)
+	removedRelations, err := doorman.TuplesToRelations(ctx, removedTuples, d.roles.Retrieve)
+	if err != nil {
+		return nil, fmt.Errorf("TuplesToRelations failed: %w, %w", err, tx.Rollback(ctx))
+	}
+
+	for _, r := range removedRelations {
+		if err := d.relations.WithTx(tx).Remove(ctx, r); err != nil {
+			return nil, fmt.Errorf("failed to remove relation %+v: %w, %w", r, err, tx.Rollback(ctx))
 		}
 	}
 
@@ -95,19 +151,28 @@ func (d *Doorman) RemoveRole(ctx context.Context, request *pb.RemoveRoleRequest)
 		return nil, fmt.Errorf("ListTuplesForRole failed: %w", err)
 	}
 
+	tx, err := d.conn.Begin(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("begin tx failed: %w", err)
+	}
+
 	for _, t := range tuples {
-		_, err := d.Revoke(ctx, &pb.RevokeRequest{
+		_, err := d.revokeWithTx(ctx, tx, &pb.RevokeRequest{
 			Subject: string(t.Subject),
 			Role:    doorman.Object(role.ID).Value(),
 			Object:  string(t.Object),
 		})
 		if err != nil {
-			return nil, fmt.Errorf("revoke failed for %s: %w", t, err)
+			return nil, fmt.Errorf("revoke failed for %s: %w, %w", t, err, tx.Rollback(ctx))
 		}
 	}
 
-	if err := d.roles.Remove(ctx, request.Id); err != nil {
-		return nil, fmt.Errorf("update failed: %w", err)
+	if err := d.roles.WithTx(tx).Remove(ctx, request.Id); err != nil {
+		return nil, fmt.Errorf("update failed: %w, %w", err, tx.Rollback(ctx))
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return nil, fmt.Errorf("tx.Commit failed: %w", err)
 	}
 
 	return &pb.Role{}, nil
@@ -126,9 +191,12 @@ func (d *Doorman) UpsertRole(ctx context.Context, request *pb.UpsertRoleRequest)
 		return nil, fmt.Errorf("ListTuplesForRole failed: %w", err)
 	}
 
-	// TODO: THIS SHOULD BE A TX. IF IT FAILS AT ANY POINT AFTER REVOKE THEN WE ARE F*CKED
+	// THIS SHOULD BE A TX. IF IT FAILS AT ANY POINT AFTER REVOKING AT LEAST 1 THEN WE ARE F*CKED
 	// BECAUSE WE HAVE LOST SOURCE OF TRUF
-	// ALT: list connections yourself and compute diff
+	tx, err := d.conn.Begin(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("begin tx failed: %w", err)
+	}
 
 	for _, t := range tuples {
 		_, err := d.Revoke(ctx, &pb.RevokeRequest{
@@ -137,7 +205,7 @@ func (d *Doorman) UpsertRole(ctx context.Context, request *pb.UpsertRoleRequest)
 			Object:  string(t.Object),
 		})
 		if err != nil {
-			return nil, fmt.Errorf("revoke failed for %s: %w", t, err)
+			return nil, fmt.Errorf("revoke failed for %s: %w, %w", t, err, tx.Rollback(ctx))
 		}
 	}
 
@@ -148,18 +216,22 @@ func (d *Doorman) UpsertRole(ctx context.Context, request *pb.UpsertRoleRequest)
 
 	// If this fails all grant requests will fail...
 	if err := d.roles.Upsert(ctx, role); err != nil {
-		return nil, fmt.Errorf("update failed: %w", err)
+		return nil, fmt.Errorf("update failed: %w, %w", err, tx.Rollback(ctx))
 	}
 
 	for _, t := range tuples {
-		_, err := d.Grant(ctx, &pb.GrantRequest{
+		_, err := d.grantWithTx(ctx, tx, &pb.GrantRequest{
 			Subject: string(t.Subject),
 			Role:    doorman.Object(role.ID).Value(),
 			Object:  string(t.Object),
 		})
 		if err != nil {
-			return nil, fmt.Errorf("grant failed: %w", err)
+			return nil, fmt.Errorf("grant failed: %w, %w", err, tx.Rollback(ctx))
 		}
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return nil, fmt.Errorf("tx.Commit failed: %w", err)
 	}
 
 	return &pb.Role{}, nil
@@ -210,6 +282,6 @@ func mapChangeToPb(c doorman.Change) *pb.Change {
 	}
 }
 
-func NewDoorman(changes db.Changes, relations db.Relations, roles db.Roles, tuples db.Tuples) *Doorman {
-	return &Doorman{changes: changes, relations: relations, roles: roles, tuples: tuples}
+func NewDoorman(conn *pgxpool.Pool) *Doorman {
+	return &Doorman{conn: conn, changes: db.NewChanges(conn), relations: db.NewRelations(conn), roles: db.NewRoles(conn), tuples: db.NewTuples(conn), objects: db.NewObjects(conn)}
 }

@@ -7,7 +7,6 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
-	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/td0m/doorman"
 	"golang.org/x/exp/slices"
 )
@@ -17,89 +16,70 @@ var ErrCycle = errors.New("cycle detected")
 var ErrTupleNotFound = errors.New("tuple not found")
 
 type Tuples struct {
-	pool *pgxpool.Pool
+	conn querier
 }
 
-func (t Tuples) Add(ctx context.Context, tuple doorman.Tuple) ([]doorman.TupleWithPath, error) {
+func (t Tuples) WithTx(tx pgx.Tx) *Tuples {
+	return &Tuples{conn: tx}
+}
+
+func (t Tuples) Lock(ctx context.Context) error {
+	// Without locking we can get some issues with concurrent writes
+	// Comment out for proof / check what will break
+	if _, err := t.conn.Exec(ctx, `lock table tuples in access exclusive mode`); err != nil {
+		return fmt.Errorf("locking table tuples failed: %w", err)
+	}
+	return nil
+}
+
+func (t Tuples) Add(ctx context.Context, tuple doorman.Tuple) error {
 	query := `
 		insert into tuples(subject, role, object)
 		values($1, $2, $3)
 	`
 
-	tx, err := t.pool.Begin(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("begin tx failed: %w", err)
-	}
-
-	defer func() {
-		_ = tx.Rollback(ctx)
-	}()
-
-	// Without locking we can get some issues with concurrent writes
-	// Comment out for proof / check what will break
-	if _, err := tx.Exec(ctx, `lock table tuples in access exclusive mode`); err != nil {
-		return nil, fmt.Errorf("locking table tuples failed: %w", err)
-	}
-
-	if _, err := tx.Exec(ctx, query, tuple.Subject, tuple.Role, tuple.Object); err != nil {
+	if _, err := t.conn.Exec(ctx, query, tuple.Subject, tuple.Role, tuple.Object); err != nil {
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) {
 			if pgErr.ConstraintName == "tuples_role_fkey" && pgErr.Code == "23503" {
-				return nil, ErrInvalidRole
+				return ErrInvalidRole
 			}
 		}
-		return nil, err
+		return err
 	}
 
-	connected, err := listConnectedTiny(ctx, tx, tuple.Object)
+	connected, err := listConnectedTiny(ctx, t.conn, tuple.Object)
 	if err != nil {
-		return nil, fmt.Errorf("listConnected failed: %w", err)
+		return fmt.Errorf("listConnected failed: %w", err)
 	}
 	for _, o := range connected {
 		if o == tuple.Subject {
-			if err := tx.Rollback(ctx); err != nil {
-				return nil, fmt.Errorf("failed to rollback on cycle: %w", err)
-			}
-			return nil, ErrCycle
+			return ErrCycle
 		}
 	}
 
-	newTuples, err := t.tuplesFrom(ctx, tx, tuple)
-	if err != nil {
-		return nil, fmt.Errorf("tuplesFrom failed: %w", err)
-	}
-
-	if err := tx.Commit(ctx); err != nil {
-		return nil, fmt.Errorf("commit failed: %w", err)
-	}
-
-	return newTuples, nil
+	return nil
 }
 
-func (t Tuples) Remove(ctx context.Context, tuple doorman.Tuple) ([]doorman.TupleWithPath, error) {
+func (t Tuples) Remove(ctx context.Context, tuple doorman.Tuple) error {
 	query := `
 		delete from tuples
 		where (subject, role, object) = ($1, $2, $3)
 	`
 
-	tag, err := t.pool.Exec(ctx, query, tuple.Subject, tuple.Role, tuple.Object)
+	tag, err := t.conn.Exec(ctx, query, tuple.Subject, tuple.Role, tuple.Object)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	if tag.RowsAffected() == 0 {
-		return nil, ErrTupleNotFound
+		return ErrTupleNotFound
 	}
 
-	tuples, err := t.tuplesFrom(ctx, t.pool, tuple)
-	if err != nil {
-		return nil, fmt.Errorf("tuplesFrom failed: %w", err)
-	}
-
-	return tuples, nil
+	return nil
 }
 
-func NewTuples(conn *pgxpool.Pool) Tuples {
+func NewTuples(conn querier) Tuples {
 	return Tuples{conn}
 }
 
@@ -110,7 +90,7 @@ func (t Tuples) ListTuplesForRole(ctx context.Context, role string) ([]doorman.T
 		where role = $1
 	`
 
-	rows, err := t.pool.Query(ctx, query, role)
+	rows, err := t.conn.Query(ctx, query, role)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
 	}
@@ -127,11 +107,7 @@ func (t Tuples) ListTuplesForRole(ctx context.Context, role string) ([]doorman.T
 }
 
 func (t Tuples) ListConnected(ctx context.Context, subject doorman.Object, inverted bool) ([]doorman.Path, error) {
-	return listConnected(ctx, t.pool, subject, inverted)
-}
-
-type querier interface {
-	Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error)
+	return listConnected(ctx, t.conn, subject, inverted)
 }
 
 func listConnected(ctx context.Context, tx querier, subject doorman.Object, inverted bool) ([]doorman.Path, error) {
@@ -192,7 +168,7 @@ func listConnected(ctx context.Context, tx querier, subject doorman.Object, inve
 	return paths, nil
 }
 
-func listConnectedTiny(ctx context.Context, tx pgx.Tx, subject doorman.Object) ([]doorman.Object, error) {
+func listConnectedTiny(ctx context.Context, tx querier, subject doorman.Object) ([]doorman.Object, error) {
 	query := `
 		with recursive connections as (
 			select
@@ -227,12 +203,12 @@ func listConnectedTiny(ctx context.Context, tx pgx.Tx, subject doorman.Object) (
 	return objects, nil
 }
 
-func (ts *Tuples) tuplesFrom(ctx context.Context, tx querier, tuple doorman.Tuple) ([]doorman.TupleWithPath, error) {
+func (ts *Tuples) DependentOn(ctx context.Context, tuple doorman.Tuple) ([]doorman.TupleWithPath, error) {
 	newTuples := []doorman.TupleWithPath{}
 	{
 		tupleChildren := []doorman.Path{{}}
 		if tuple.Object.Type() == "group" {
-			connections, err := listConnected(ctx, tx, tuple.Object, false)
+			connections, err := listConnected(ctx, ts.conn, tuple.Object, false)
 			if err != nil {
 				return nil, fmt.Errorf("tuples.ListConnected(subj, false) failed: %w", err)
 			}
@@ -241,7 +217,7 @@ func (ts *Tuples) tuplesFrom(ctx context.Context, tx querier, tuple doorman.Tupl
 
 		tupleParents := []doorman.Path{{}}
 		if tuple.Subject.Type() == "group" {
-			connections, err := listConnected(ctx, tx, tuple.Subject, true)
+			connections, err := listConnected(ctx, ts.conn, tuple.Subject, true)
 			if err != nil {
 				return nil, fmt.Errorf("tuples.ListConnected(obj, true) failed: %w", err)
 			}
@@ -270,24 +246,12 @@ func (ts *Tuples) tuplesFrom(ctx context.Context, tx querier, tuple doorman.Tupl
 					t.Path = append(t.Path, child[:len(child)-1]...)
 				}
 
-				if throughGroupsOnly(t.Path) {
-					newTuples = append(newTuples, t)
-				}
+				// if throughGroupsOnly(t.Path) {
+				newTuples = append(newTuples, t)
+				// }
 			}
 		}
 	}
 
 	return newTuples, nil
-}
-
-// e.g. user:alice -> item:1 -> item:2 should not connect user:alice with item:2
-// why? because it's not a group
-func throughGroupsOnly(path doorman.Path) bool {
-	for _, conn := range path {
-		if conn.Object.Type() != "group" {
-			return false
-		}
-	}
-
-	return true
 }

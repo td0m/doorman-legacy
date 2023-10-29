@@ -31,3 +31,15 @@ type Connection struct {
 }
 
 type Path []Connection
+
+// e.g. user:alice -> item:1 -> item:2 should not connect user:alice with item:2
+// why? because it's not a group
+func (path Path) GroupsOnly() bool {
+	for _, conn := range path {
+		if conn.Object.Type() != "group" {
+			return false
+		}
+	}
+
+	return true
+}
