@@ -197,4 +197,3 @@ func listConnectedTiny(ctx context.Context, tx querier, subject doorman.Object) 
 func NewTuples(conn querier) Tuples {
 	return Tuples{conn}
 }
-

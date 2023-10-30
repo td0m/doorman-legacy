@@ -54,7 +54,8 @@ func (d *Doorman) Check(ctx context.Context, request *pb.CheckRequest) (*pb.Chec
 	return &pb.CheckResponse{Success: success}, nil
 }
 
-func (d *Doorman) DependentOn(ctx context.Context, tx pgx.Tx, tuple doorman.Tuple) ([]doorman.Tuple, error) { newTuples := []doorman.Tuple{}
+func (d *Doorman) DependentOn(ctx context.Context, tx pgx.Tx, tuple doorman.Tuple) ([]doorman.Tuple, error) {
+	newTuples := []doorman.Tuple{}
 	{
 		tupleChildren := []doorman.Path{{}}
 		if tuple.Object.Type() == "group" {
