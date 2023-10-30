@@ -8,7 +8,6 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/td0m/doorman"
-	"golang.org/x/exp/slices"
 )
 
 var ErrInvalidRole = errors.New("this role does not exist for the given object type")
@@ -79,10 +78,6 @@ func (t Tuples) Remove(ctx context.Context, tuple doorman.Tuple) error {
 	return nil
 }
 
-func NewTuples(conn querier) Tuples {
-	return Tuples{conn}
-}
-
 func (t Tuples) ListTuplesForRole(ctx context.Context, role string) ([]doorman.Tuple, error) {
 	query := `
 		select subject, object
@@ -107,10 +102,6 @@ func (t Tuples) ListTuplesForRole(ctx context.Context, role string) ([]doorman.T
 }
 
 func (t Tuples) ListConnected(ctx context.Context, subject doorman.Object, inverted bool) ([]doorman.Path, error) {
-	return listConnected(ctx, t.conn, subject, inverted)
-}
-
-func listConnected(ctx context.Context, tx querier, subject doorman.Object, inverted bool) ([]doorman.Path, error) {
 	query := `
 		with recursive connections as (
 			select
@@ -147,7 +138,7 @@ func listConnected(ctx context.Context, tx querier, subject doorman.Object, inve
 	`
 	}
 
-	rows, err := tx.Query(ctx, query, subject)
+	rows, err := t.conn.Query(ctx, query, subject)
 	if err != nil {
 		return nil, fmt.Errorf("exec failed: %w", err)
 	}
@@ -203,53 +194,7 @@ func listConnectedTiny(ctx context.Context, tx querier, subject doorman.Object) 
 	return objects, nil
 }
 
-func (ts *Tuples) DependentOn(ctx context.Context, tuple doorman.Tuple) ([]doorman.Tuple, error) {
-	newTuples := []doorman.Tuple{}
-	{
-		tupleChildren := []doorman.Path{{}}
-		if tuple.Object.Type() == "group" {
-			connections, err := listConnected(ctx, ts.conn, tuple.Object, false)
-			if err != nil {
-				return nil, fmt.Errorf("tuples.ListConnected(subj, false) failed: %w", err)
-			}
-			tupleChildren = append(tupleChildren, connections...)
-		}
-
-		tupleParents := []doorman.Path{{}}
-		if tuple.Subject.Type() == "group" {
-			connections, err := listConnected(ctx, ts.conn, tuple.Subject, true)
-			if err != nil {
-				return nil, fmt.Errorf("tuples.ListConnected(obj, true) failed: %w", err)
-			}
-			tupleParents = append(tupleParents, connections...)
-		}
-
-		for _, child := range tupleChildren {
-			for _, parent := range tupleParents {
-				t := doorman.Tuple{
-					Subject: tuple.Subject,
-					Role:    tuple.Role,
-					Object:  tuple.Object,
-					Path:    doorman.Path{},
-				}
-				if len(parent) > 0 {
-					t.Subject = parent[len(parent)-1].Object
-					path := parent[:len(parent)-1]
-					slices.Reverse(path)
-					t.Path = append(t.Path, path...)
-				}
-				if len(child) > 0 {
-					t.Object = child[len(child)-1].Object
-					t.Role = child[len(child)-1].Role
-					t.Path = append(t.Path, child[:len(child)-1]...)
-				}
-
-				// if throughGroupsOnly(t.Path) {
-				newTuples = append(newTuples, t)
-				// }
-			}
-		}
-	}
-
-	return newTuples, nil
+func NewTuples(conn querier) Tuples {
+	return Tuples{conn}
 }
+
