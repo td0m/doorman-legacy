@@ -15,7 +15,7 @@ type Change struct {
 	CreatedAt time.Time
 }
 
-func TuplesToChanges(ts []TupleWithPath, created bool) []Change {
+func TuplesToChanges(ts []Tuple, created bool) []Change {
 	typ := "TUPLE_CREATED"
 	if !created {
 		typ = "TUPLE_REMOVED"
@@ -23,11 +23,14 @@ func TuplesToChanges(ts []TupleWithPath, created bool) []Change {
 
 	changes := make([]Change, len(ts))
 	for i, t := range ts {
-		fmt.Println(t)
+		bs, err := json.Marshal(t)
+		if err != nil {
+			panic(fmt.Errorf("marshal failed: %w", err))
+		}
 		changes[i] = Change{
 			ID:      xid.New().String(),
 			Type:    typ,
-			Payload: []byte("{}"),
+			Payload: bs,
 		}
 	}
 	return changes
@@ -40,9 +43,8 @@ func RelationsToChanges(rs []Relation, created bool) []Change {
 	}
 
 	changes := make([]Change, len(rs))
-	for i, t := range rs {
-		fmt.Println("tmp", t)
-		bs, err := json.Marshal(t)
+	for i, r := range rs {
+		bs, err := json.Marshal(r)
 		if err != nil {
 			panic(fmt.Errorf("marshal failed: %w", err))
 		}

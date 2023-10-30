@@ -203,8 +203,8 @@ func listConnectedTiny(ctx context.Context, tx querier, subject doorman.Object) 
 	return objects, nil
 }
 
-func (ts *Tuples) DependentOn(ctx context.Context, tuple doorman.Tuple) ([]doorman.TupleWithPath, error) {
-	newTuples := []doorman.TupleWithPath{}
+func (ts *Tuples) DependentOn(ctx context.Context, tuple doorman.Tuple) ([]doorman.Tuple, error) {
+	newTuples := []doorman.Tuple{}
 	{
 		tupleChildren := []doorman.Path{{}}
 		if tuple.Object.Type() == "group" {
@@ -226,13 +226,11 @@ func (ts *Tuples) DependentOn(ctx context.Context, tuple doorman.Tuple) ([]doorm
 
 		for _, child := range tupleChildren {
 			for _, parent := range tupleParents {
-				t := doorman.TupleWithPath{
-					Tuple: doorman.Tuple{
-						Subject: tuple.Subject,
-						Role:    tuple.Role,
-						Object:  tuple.Object,
-					},
-					Path: doorman.Path{},
+				t := doorman.Tuple{
+					Subject: tuple.Subject,
+					Role:    tuple.Role,
+					Object:  tuple.Object,
+					Path:    doorman.Path{},
 				}
 				if len(parent) > 0 {
 					t.Subject = parent[len(parent)-1].Object

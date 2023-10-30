@@ -3,14 +3,10 @@ package doorman
 import "fmt"
 
 type Tuple struct {
-	Subject Object
-	Role    string
-	Object  Object
-}
-
-type TupleWithPath struct {
-	Tuple
-	Path Path
+	Subject Object `json:"subject"`
+	Role    string `json:"role"`
+	Object  Object `json:"object"`
+	Path    Path   `json:"path"`
 }
 
 func (t Tuple) Equal(r Tuple) bool {
@@ -22,12 +18,12 @@ func (t Tuple) String() string {
 }
 
 func NewTuple(sub Object, role string, obj Object) Tuple {
-	return Tuple{sub, role, obj}
+	return Tuple{sub, role, obj, Path{}}
 }
 
 type Connection struct {
-	Role   string
-	Object Object
+	Role   string `json:"connection"`
+	Object Object `json:"object"`
 }
 
 type Path []Connection

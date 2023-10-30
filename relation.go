@@ -6,10 +6,10 @@ import (
 )
 
 type Relation struct {
-	Object  Object
-	Verb    Verb
-	Subject Object
-	Path    []string
+	Object  Object   `json:"object"`
+	Verb    Verb     `json:"verb"`
+	Subject Object   `json:"subject"`
+	Path    []string `json:"path"`
 }
 
 func (r Relation) String() string {
@@ -18,7 +18,7 @@ func (r Relation) String() string {
 
 type resolveRole func(ctx context.Context, id string) (*Role, error)
 
-func TuplesToRelations(ctx context.Context, tuples []TupleWithPath, r resolveRole) ([]Relation, error) {
+func TuplesToRelations(ctx context.Context, tuples []Tuple, r resolveRole) ([]Relation, error) {
 	uniqueRoles := map[string]*Role{}
 	for _, t := range tuples {
 		uniqueRoles[t.Role] = nil
