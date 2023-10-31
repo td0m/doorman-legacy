@@ -24,7 +24,7 @@ func (r Relations) WithTx(tx pgx.Tx) *Relations {
 
 func (rs Relations) Check(ctx context.Context, r doorman.Relation) (bool, error) {
 	query := `
-		select path
+		select 1
 		from relations
 		where (subject, verb, object) = ($1, $2, $3)
 		limit 1
@@ -49,12 +49,12 @@ func (rs Relations) Add(ctx context.Context, r doorman.Relation) error {
 	// why on conflict? remove it and run the parallel test
 	// alternative? use a locking tx and read tuples then...
 	query := `
-		insert into relations(subject, verb, object, path)
-		values($1, $2, $3, $4)
+		insert into relations(subject, verb, object)
+		values($1, $2, $3)
 		on conflict do nothing
 	`
 
-	if _, err := rs.conn.Exec(ctx, query, r.Subject, r.Verb, r.Object, r.Path); err != nil {
+	if _, err := rs.conn.Exec(ctx, query, r.Subject, r.Verb, r.Object); err != nil {
 		return fmt.Errorf("exec failed: %w", err)
 	}
 
@@ -64,9 +64,9 @@ func (rs Relations) Add(ctx context.Context, r doorman.Relation) error {
 func (rs Relations) Remove(ctx context.Context, r doorman.Relation) error {
 	query := `
 		delete from relations
-		where (subject, verb, object, path) = ($1, $2, $3, $4)
+		where (subject, verb, object) = ($1, $2, $3)
 	`
-	if _, err := rs.conn.Exec(ctx, query, r.Subject, r.Verb, r.Object, r.Path); err != nil {
+	if _, err := rs.conn.Exec(ctx, query, r.Subject, r.Verb, r.Object); err != nil {
 		return fmt.Errorf("exec failed: %w", err)
 	}
 

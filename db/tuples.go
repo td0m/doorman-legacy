@@ -60,6 +60,30 @@ func (t Tuples) Add(ctx context.Context, tuple doorman.Tuple) error {
 	return nil
 }
 
+func (t Tuples) ListTuplesBetween(ctx context.Context, subject, object doorman.Object) ([]doorman.Tuple, error) {
+	query := `
+		select role
+		from tuples
+		where (subject, object) = ($1, $2)
+	`
+
+	rows, err := t.conn.Query(ctx, query, subject, object)
+	if err != nil {
+		return nil, err
+	}
+
+	var tuples []doorman.Tuple
+	for rows.Next() {
+		tuple := doorman.Tuple{Subject: subject, Object: object}
+		if err := rows.Scan(&tuple.Role); err != nil {
+			return nil, fmt.Errorf("scan failed: %w", err)
+		}
+		tuples = append(tuples, tuple)
+	}
+
+	return tuples, nil
+}
+
 func (t Tuples) Remove(ctx context.Context, tuple doorman.Tuple) error {
 	query := `
 		delete from tuples

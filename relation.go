@@ -6,14 +6,13 @@ import (
 )
 
 type Relation struct {
-	Object  Object   `json:"object"`
-	Verb    Verb     `json:"verb"`
-	Subject Object   `json:"subject"`
-	Path    []string `json:"path"`
+	Object  Object `json:"object"`
+	Verb    Verb   `json:"verb"`
+	Subject Object `json:"subject"`
 }
 
 func (r Relation) String() string {
-	return fmt.Sprintf("(%s, %s, %s) via '%s'", r.Subject, r.Verb, r.Object, r.Path)
+	return fmt.Sprintf("(%s, %s, %s)", r.Subject, r.Verb, r.Object)
 }
 
 type resolveRole func(ctx context.Context, id string) (*Role, error)
@@ -38,16 +37,10 @@ func TuplesToRelations(ctx context.Context, tuples []Tuple, r resolveRole) ([]Re
 			continue
 		}
 		for _, verb := range uniqueRoles[t.Role].Verbs {
-			path := []string{}
-			for _, c := range t.Path {
-				path = append(path, c.Role, string(c.Object))
-			}
-			path = append(path, t.Role)
 			relations = append(relations, Relation{
 				Subject: t.Subject,
 				Verb:    verb,
 				Object:  t.Object,
-				Path:    path,
 			})
 		}
 	}

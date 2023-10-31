@@ -313,18 +313,41 @@ func (d *Doorman) revokeWithTx(ctx context.Context, tx pgx.Tx, request *pb.Revok
 		return nil, fmt.Errorf("tuples.DependentOn failed: %w, %w", err, tx.Rollback(ctx))
 	}
 
+	tuplesLeft, err := d.tuples.WithTx(tx).ListTuplesBetween(ctx, tuple.Subject, tuple.Object)
+	if err != nil {
+		return nil, fmt.Errorf("ListTuplesBetween failed: %w", err)
+	}
+
+	verbsLeft := map[doorman.Verb]bool{}
+	for _, tuple := range tuplesLeft {
+		role, err := d.roles.WithTx(tx).Retrieve(ctx, tuple.Role)
+		if err != nil {
+			return nil, fmt.Errorf("roles.Retrieve failed: %w", err)
+		}
+		for _, v := range role.Verbs {
+			verbsLeft[v] = true
+		}
+	}
+
 	removedRelations, err := doorman.TuplesToRelations(ctx, removedTuples, d.roles.Retrieve)
 	if err != nil {
 		return nil, fmt.Errorf("TuplesToRelations failed: %w, %w", err, tx.Rollback(ctx))
 	}
 
+	removedRelationsWithoutDuplicates := []doorman.Relation{}
 	for _, r := range removedRelations {
+		if !verbsLeft[r.Verb] {
+			removedRelationsWithoutDuplicates = append(removedRelationsWithoutDuplicates, r)
+		}
+	}
+
+	for _, r := range removedRelationsWithoutDuplicates {
 		if err := d.relations.WithTx(tx).Remove(ctx, r); err != nil {
 			return nil, fmt.Errorf("failed to remove relation %+v: %w, %w", r, err, tx.Rollback(ctx))
 		}
 	}
 
-	changes := append(doorman.TuplesToChanges(removedTuples, false), doorman.RelationsToChanges(removedRelations, false)...)
+	changes := append(doorman.TuplesToChanges(removedTuples, false), doorman.RelationsToChanges(removedRelationsWithoutDuplicates, false)...)
 	for _, change := range changes {
 		if err := d.changes.Add(ctx, change); err != nil {
 			return nil, fmt.Errorf("changes.Add failed: %w, %w", err, tx.Rollback(ctx))
