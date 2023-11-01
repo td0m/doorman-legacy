@@ -35,24 +35,3 @@ func TuplesToChanges(ts []Tuple, created bool) []Change {
 	}
 	return changes
 }
-
-func RelationsToChanges(rs []Relation, created bool) []Change {
-	typ := "RELATION_CREATED"
-	if !created {
-		typ = "RELATION_REMOVED"
-	}
-
-	changes := make([]Change, len(rs))
-	for i, r := range rs {
-		bs, err := json.Marshal(r)
-		if err != nil {
-			panic(fmt.Errorf("marshal failed: %w", err))
-		}
-		changes[i] = Change{
-			ID:      xid.New().String(),
-			Type:    typ,
-			Payload: bs,
-		}
-	}
-	return changes
-}

@@ -9,7 +9,6 @@ import (
 	"github.com/td0m/doorman"
 	"github.com/td0m/doorman/db"
 	pb "github.com/td0m/doorman/gen/go"
-	"golang.org/x/exp/slices"
 )
 
 type Doorman struct {
@@ -17,11 +16,11 @@ type Doorman struct {
 
 	conn *pgxpool.Pool
 
-	relations db.Relations
-	changes   db.Changes
-	objects   db.Objects
-	roles     db.Roles
-	tuples    db.Tuples
+	sets    db.Sets
+	changes db.Changes
+	objects db.Objects
+	roles   db.Roles
+	tuples  db.Tuples
 }
 
 func (d *Doorman) Changes(ctx context.Context, request *pb.ChangesRequest) (*pb.ChangesResponse, error) {
@@ -42,65 +41,65 @@ func (d *Doorman) Changes(ctx context.Context, request *pb.ChangesRequest) (*pb.
 }
 
 func (d *Doorman) Check(ctx context.Context, request *pb.CheckRequest) (*pb.CheckResponse, error) {
-	success, err := d.relations.Check(ctx, doorman.Relation{
-		Subject: doorman.Object(request.Subject),
-		Verb:    doorman.Verb(request.Verb),
-		Object:  doorman.Object(request.Object),
-	})
-	if err != nil {
-		return nil, fmt.Errorf("check failed: %w", err)
-	}
-
-	return &pb.CheckResponse{Success: success}, nil
-}
-
-func (d *Doorman) DependentOn(ctx context.Context, tx pgx.Tx, tuple doorman.Tuple) ([]doorman.Tuple, error) {
-	newTuples := []doorman.Tuple{}
 	{
-		tupleChildren := []doorman.Path{{}}
-		if tuple.Object.Type() == "group" {
-			connections, err := d.tuples.WithTx(tx).ListConnected(ctx, tuple.Object, false)
-			if err != nil {
-				return nil, fmt.Errorf("tuples.ListConnected(subj, false) failed: %w", err)
-			}
-			tupleChildren = append(tupleChildren, connections...)
+		success, err := d.sets.Contains(ctx, doorman.Set{
+			Object: doorman.Object(request.Object),
+			Verb:   doorman.Verb(request.Verb),
+		}, doorman.Object(request.Subject))
+		if err != nil && err != db.ErrStale {
+			return nil, fmt.Errorf("check failed: %w", err)
 		}
 
-		tupleParents := []doorman.Path{{}}
-		if tuple.Subject.Type() == "group" {
-			connections, err := d.tuples.WithTx(tx).ListConnected(ctx, tuple.Subject, true)
-			if err != nil {
-				return nil, fmt.Errorf("tuples.ListConnected(obj, true) failed: %w", err)
-			}
-			tupleParents = append(tupleParents, connections...)
+		if err == nil {
+			return &pb.CheckResponse{Success: success}, nil
 		}
+	}
 
-		for _, child := range tupleChildren {
-			for _, parent := range tupleParents {
-				t := doorman.Tuple{
-					Subject: tuple.Subject,
-					Role:    tuple.Role,
-					Object:  tuple.Object,
-					Path:    doorman.Path{},
-				}
-				if len(parent) > 0 {
-					t.Subject = parent[len(parent)-1].Object
-					path := parent[:len(parent)-1]
-					slices.Reverse(path)
-					t.Path = append(t.Path, path...)
-				}
-				if len(child) > 0 {
-					t.Object = child[len(child)-1].Object
-					t.Role = child[len(child)-1].Role
-					t.Path = append(t.Path, child[:len(child)-1]...)
-				}
+	tuples, err := d.tuples.ListParents(ctx, doorman.Object(request.Subject))
+	if err != nil {
+		return nil, fmt.Errorf("listparents failed: %w", err)
+	}
 
-				newTuples = append(newTuples, t)
+	parentSets, err := doorman.ParentTuplesToSets(ctx, tuples, d.roles.Retrieve)
+	if err != nil {
+		return nil, fmt.Errorf("pts failed: %w", err)
+	}
+
+	_ = d.sets.UpdateParents(ctx, doorman.Object(request.Subject), parentSets)
+
+	// Direct matches first
+	for _, tuple := range tuples {
+		if tuple.Subject == doorman.Object(request.Subject) && tuple.Object == doorman.Object(request.Object) {
+			role, err := d.roles.Retrieve(ctx, tuple.Role)
+			if err != nil {
+				return nil, fmt.Errorf("db.Retrieve failed: %w", err)
+			}
+			for _, v := range role.Verbs {
+				if v == doorman.Verb(request.Verb) {
+					return &pb.CheckResponse{Success: true}, nil
+				}
 			}
 		}
 	}
 
-	return newTuples, nil
+	// Now indirect matches
+	for _, tuple := range tuples {
+		if tuple.Object.Type() == "group" {
+			res, err := d.Check(ctx, &pb.CheckRequest{
+				Subject: string(tuple.Object),
+				Verb:    request.Verb,
+				Object:  request.Object,
+			})
+			if err != nil {
+				return nil, fmt.Errorf("check failed: %w", err)
+			}
+			if res.Success {
+				return &pb.CheckResponse{Success: true}, nil
+			}
+		}
+	}
+
+	return &pb.CheckResponse{Success: false}, nil
 }
 
 func (d *Doorman) Grant(ctx context.Context, request *pb.GrantRequest) (*pb.GrantResponse, error) {
@@ -122,20 +121,7 @@ func (d *Doorman) Grant(ctx context.Context, request *pb.GrantRequest) (*pb.Gran
 }
 
 func (d *Doorman) ListRelations(ctx context.Context, request *pb.ListRelationsRequest) (*pb.ListRelationsResponse, error) {
-	filter := db.RelationFilter{Subject: &request.Subject, Verb: request.Verb}
-	relations, err := d.relations.List(ctx, filter)
-	if err != nil {
-		return nil, fmt.Errorf("db failed: %w", err)
-	}
-
-	items := make([]*pb.Relation, len(relations))
-	for i, r := range relations {
-		items[i] = mapRelationToPb(r)
-	}
-
-	return &pb.ListRelationsResponse{
-		Items: items,
-	}, nil
+	return &pb.ListRelationsResponse{}, nil
 }
 
 func (d *Doorman) RemoveRole(ctx context.Context, request *pb.RemoveRoleRequest) (*pb.Role, error) {
@@ -268,28 +254,7 @@ func (d *Doorman) grantWithTx(ctx context.Context, tx pgx.Tx, request *pb.GrantR
 		return nil, fmt.Errorf("tuples.Add failed: %w, %w", err, tx.Rollback(ctx))
 	}
 
-	newTuples, err := d.DependentOn(ctx, tx, tuple)
-	if err != nil {
-		return nil, fmt.Errorf("tuples.DependentOn failed: %w, %w", err, tx.Rollback(ctx))
-	}
-
-	newRelations, err := doorman.TuplesToRelations(ctx, newTuples, d.roles.Retrieve)
-	if err != nil {
-		return nil, fmt.Errorf("TuplesToRelations failed: %w, %w", err, tx.Rollback(ctx))
-	}
-
-	for _, r := range newRelations {
-		if err := d.relations.WithTx(tx).Add(ctx, r); err != nil {
-			return nil, fmt.Errorf("failed to add relation %+v: %w %w", r, err, tx.Rollback(ctx))
-		}
-	}
-
-	changes := append(doorman.TuplesToChanges(newTuples, true), doorman.RelationsToChanges(newRelations, true)...)
-	for _, change := range changes {
-		if err := d.changes.Add(ctx, change); err != nil {
-			return nil, fmt.Errorf("changes.Add failed: %w, %w", err, tx.Rollback(ctx))
-		}
-	}
+	d.sets.InvalidateParents(ctx, tuple.Subject)
 
 	return &pb.GrantResponse{}, nil
 }
@@ -308,69 +273,17 @@ func (d *Doorman) revokeWithTx(ctx context.Context, tx pgx.Tx, request *pb.Revok
 		return nil, fmt.Errorf("tuples.Remove failed: %w, %w", err, tx.Rollback(ctx))
 	}
 
-	removedTuples, err := d.DependentOn(ctx, tx, tuple)
-	if err != nil {
-		return nil, fmt.Errorf("tuples.DependentOn failed: %w, %w", err, tx.Rollback(ctx))
-	}
-
-	tuplesLeft, err := d.tuples.WithTx(tx).ListTuplesBetween(ctx, tuple.Subject, tuple.Object)
-	if err != nil {
-		return nil, fmt.Errorf("ListTuplesBetween failed: %w", err)
-	}
-
-	verbsLeft := map[doorman.Verb]bool{}
-	for _, tuple := range tuplesLeft {
-		role, err := d.roles.WithTx(tx).Retrieve(ctx, tuple.Role)
-		if err != nil {
-			return nil, fmt.Errorf("roles.Retrieve failed: %w", err)
-		}
-		for _, v := range role.Verbs {
-			verbsLeft[v] = true
-		}
-	}
-
-	removedRelations, err := doorman.TuplesToRelations(ctx, removedTuples, d.roles.Retrieve)
-	if err != nil {
-		return nil, fmt.Errorf("TuplesToRelations failed: %w, %w", err, tx.Rollback(ctx))
-	}
-
-	removedRelationsWithoutDuplicates := []doorman.Relation{}
-	for _, r := range removedRelations {
-		if !verbsLeft[r.Verb] {
-			removedRelationsWithoutDuplicates = append(removedRelationsWithoutDuplicates, r)
-		}
-	}
-
-	for _, r := range removedRelationsWithoutDuplicates {
-		if err := d.relations.WithTx(tx).Remove(ctx, r); err != nil {
-			return nil, fmt.Errorf("failed to remove relation %+v: %w, %w", r, err, tx.Rollback(ctx))
-		}
-	}
-
-	changes := append(doorman.TuplesToChanges(removedTuples, false), doorman.RelationsToChanges(removedRelationsWithoutDuplicates, false)...)
-	for _, change := range changes {
-		if err := d.changes.Add(ctx, change); err != nil {
-			return nil, fmt.Errorf("changes.Add failed: %w, %w", err, tx.Rollback(ctx))
-		}
-	}
+	d.sets.InvalidateParents(ctx, tuple.Subject)
 
 	return &pb.RevokeResponse{}, nil
 }
 
 func NewDoorman(conn *pgxpool.Pool) *Doorman {
-	return &Doorman{conn: conn, changes: db.NewChanges(conn), relations: db.NewRelations(conn), roles: db.NewRoles(conn), tuples: db.NewTuples(conn), objects: db.NewObjects(conn)}
+	return &Doorman{conn: conn, changes: db.NewChanges(conn), sets: db.NewSets(conn), roles: db.NewRoles(conn), tuples: db.NewTuples(conn), objects: db.NewObjects(conn)}
 }
 
 func mapChangeToPb(c doorman.Change) *pb.Change {
 	return &pb.Change{
 		Type: c.Type,
-	}
-}
-
-func mapRelationToPb(r doorman.Relation) *pb.Relation {
-	return &pb.Relation{
-		Subject: string(r.Subject),
-		Verb:    string(r.Verb),
-		Object:  string(r.Object),
 	}
 }

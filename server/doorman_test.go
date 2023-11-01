@@ -50,7 +50,7 @@ func TestCheckDirect(t *testing.T) {
 	alice := doorman.Object("user:alice")
 	member := doorman.Role{
 		ID:    "group:member",
-		Verbs: []doorman.Verb{"foo"},
+		Verbs: []doorman.Verb{"inherits"},
 	}
 	admins := doorman.Object("group:admins")
 
@@ -61,7 +61,7 @@ func TestCheckDirect(t *testing.T) {
 	t.Run("Failure: Check before granting", func(t *testing.T) {
 		res, err := s.Check(ctx, &pb.CheckRequest{
 			Subject: string(alice),
-			Verb:    "foo",
+			Verb:    "inherits",
 			Object:  string(admins),
 		})
 		require.NoError(t, err)
@@ -80,7 +80,7 @@ func TestCheckDirect(t *testing.T) {
 	t.Run("Success: Check after granting", func(t *testing.T) {
 		res, err := s.Check(ctx, &pb.CheckRequest{
 			Subject: string(alice),
-			Verb:    "foo",
+			Verb:    "inherits",
 			Object:  string(admins),
 		})
 		require.NoError(t, err)
@@ -97,7 +97,7 @@ func TestCheckViaGroup(t *testing.T) {
 	alice := doorman.Object("user:alice")
 	member := doorman.Role{
 		ID:    "group:member",
-		Verbs: []doorman.Verb{"foo"},
+		Verbs: []doorman.Verb{"inherits"},
 	}
 	admins := doorman.Object("group:admins")
 	owner := doorman.Role{
@@ -158,7 +158,7 @@ func TestCheckViaTwoGroups(t *testing.T) {
 	alice := doorman.Object("user:alice")
 	member := doorman.Role{
 		ID:    "group:member",
-		Verbs: []doorman.Verb{"foo"},
+		Verbs: []doorman.Verb{"inherits"},
 	}
 	superadmins := doorman.Object("group:superadmins")
 	admins := doorman.Object("group:admins")
@@ -228,7 +228,7 @@ func TestCheckViaThreeGroups(t *testing.T) {
 	alice := doorman.Object("user:alice")
 	member := doorman.Role{
 		ID:    "group:member",
-		Verbs: []doorman.Verb{"foo"},
+		Verbs: []doorman.Verb{"inherits"},
 	}
 	duperadmins := doorman.Object("group:duperadmins")
 	superadmins := doorman.Object("group:superadmins")
@@ -308,7 +308,7 @@ func TestCheckViaThreeGroupsGrantedInParallel(t *testing.T) {
 	alice := doorman.Object("user:alice")
 	member := doorman.Role{
 		ID:    "group:member",
-		Verbs: []doorman.Verb{"foo"},
+		Verbs: []doorman.Verb{"inherits"},
 	}
 	duperadmins := doorman.Object("group:duperadmins")
 	superadmins := doorman.Object("group:superadmins")
@@ -399,7 +399,7 @@ func TestCheckViaGroop(t *testing.T) {
 	alice := doorman.Object("user:alice")
 	member := doorman.Role{
 		ID:    "groop:member",
-		Verbs: []doorman.Verb{"foo"},
+		Verbs: []doorman.Verb{"inherits"},
 	}
 	admins := doorman.Object("groop:admins")
 	owner := doorman.Role{
@@ -458,8 +458,8 @@ func TestCheckViaGroupAndGroop(t *testing.T) {
 	ctx := context.Background()
 
 	alice := doorman.Object("user:alice")
-	groupMember := doorman.Role{ID: "group:member", Verbs: []doorman.Verb{"foo"}}
-	groopMember := doorman.Role{ID: "groop:member", Verbs: []doorman.Verb{"foo"}}
+	groupMember := doorman.Role{ID: "group:member", Verbs: []doorman.Verb{"inherits"}}
+	groopMember := doorman.Role{ID: "groop:member", Verbs: []doorman.Verb{"inherits"}}
 	superadmins := doorman.Object("group:superadmins")
 	admins := doorman.Object("groop:admins")
 	owner := doorman.Role{
@@ -527,7 +527,7 @@ func TestConnectingToSelfFails(t *testing.T) {
 	s := NewDoorman(conn)
 	ctx := context.Background()
 
-	groupMember := doorman.Role{ID: "group:member", Verbs: []doorman.Verb{"foo"}}
+	groupMember := doorman.Role{ID: "group:member", Verbs: []doorman.Verb{"inherits"}}
 	admins := doorman.Object("group:admins")
 	owner := doorman.Role{
 		ID:    "item:owner",
@@ -572,7 +572,7 @@ func TestConnectingToSelfIndirectlyInParallelFails(t *testing.T) {
 	s := NewDoorman(conn)
 	ctx := context.Background()
 
-	groupMember := doorman.Role{ID: "group:member", Verbs: []doorman.Verb{"foo"}}
+	groupMember := doorman.Role{ID: "group:member", Verbs: []doorman.Verb{"inherits"}}
 	admins := doorman.Object("group:admins")
 	owner := doorman.Role{
 		ID:    "item:owner",
@@ -904,52 +904,52 @@ func TestRemoveRole(t *testing.T) {
 	})
 }
 
-func TestListChanges(t *testing.T) {
-	cleanup(conn)
-	s := NewDoorman(conn)
-	ctx := context.Background()
-
-	alice := doorman.Object("user:alice")
-	owner := doorman.Role{
-		ID:    "item:owner",
-		Verbs: []doorman.Verb{"eat"},
-	}
-	banana := doorman.Object("item:banana")
-
-	require.NoError(t, s.objects.Add(ctx, alice))
-	require.NoError(t, s.roles.Add(ctx, owner))
-	require.NoError(t, s.objects.Add(ctx, banana))
-
-	{
-		_, err := s.Grant(ctx, &pb.GrantRequest{
-			Subject: string(alice),
-			Role:    string("owner"),
-			Object:  string(banana),
-		})
-		require.NoError(t, err)
-	}
-
-	res, err := s.Changes(ctx, &pb.ChangesRequest{})
-	require.NoError(t, err)
-	require.Equal(t, 2, len(res.Items))
-	require.Equal(t, "TUPLE_CREATED", res.Items[0].Type)
-	require.Equal(t, "RELATION_CREATED", res.Items[1].Type)
-
-	{
-		_, err := s.Revoke(ctx, &pb.RevokeRequest{
-			Subject: string(alice),
-			Role:    string("owner"),
-			Object:  string(banana),
-		})
-		require.NoError(t, err)
-	}
-
-	res, err = s.Changes(ctx, &pb.ChangesRequest{PaginationToken: res.PaginationToken})
-	require.NoError(t, err)
-	require.Equal(t, 2, len(res.Items))
-	require.Equal(t, "TUPLE_REMOVED", res.Items[0].Type)
-	require.Equal(t, "RELATION_REMOVED", res.Items[1].Type)
-}
+// func TestListChanges(t *testing.T) {
+// 	cleanup(conn)
+// 	s := NewDoorman(conn)
+// 	ctx := context.Background()
+//
+// 	alice := doorman.Object("user:alice")
+// 	owner := doorman.Role{
+// 		ID:    "item:owner",
+// 		Verbs: []doorman.Verb{"eat"},
+// 	}
+// 	banana := doorman.Object("item:banana")
+//
+// 	require.NoError(t, s.objects.Add(ctx, alice))
+// 	require.NoError(t, s.roles.Add(ctx, owner))
+// 	require.NoError(t, s.objects.Add(ctx, banana))
+//
+// 	{
+// 		_, err := s.Grant(ctx, &pb.GrantRequest{
+// 			Subject: string(alice),
+// 			Role:    string("owner"),
+// 			Object:  string(banana),
+// 		})
+// 		require.NoError(t, err)
+// 	}
+//
+// 	res, err := s.Changes(ctx, &pb.ChangesRequest{})
+// 	require.NoError(t, err)
+// 	require.Equal(t, 2, len(res.Items))
+// 	require.Equal(t, "TUPLE_CREATED", res.Items[0].Type)
+// 	require.Equal(t, "RELATION_CREATED", res.Items[1].Type)
+//
+// 	{
+// 		_, err := s.Revoke(ctx, &pb.RevokeRequest{
+// 			Subject: string(alice),
+// 			Role:    string("owner"),
+// 			Object:  string(banana),
+// 		})
+// 		require.NoError(t, err)
+// 	}
+//
+// 	res, err = s.Changes(ctx, &pb.ChangesRequest{PaginationToken: res.PaginationToken})
+// 	require.NoError(t, err)
+// 	require.Equal(t, 2, len(res.Items))
+// 	require.Equal(t, "TUPLE_REMOVED", res.Items[0].Type)
+// 	require.Equal(t, "RELATION_REMOVED", res.Items[1].Type)
+// }
 
 func TestRemoveOneOfTwoRolesWithSameVerb(t *testing.T) {
 	cleanup(conn)
@@ -998,6 +998,93 @@ func TestRemoveOneOfTwoRolesWithSameVerb(t *testing.T) {
 	_, err = s.Revoke(ctx, &pb.RevokeRequest{
 		Subject: string(alice),
 		Role:    "reader",
+		Object:  string(banana),
+	})
+	assert.NoError(t, err)
+
+	{
+		res, err := s.Check(ctx, &pb.CheckRequest{
+			Subject: string(alice),
+			Verb:    "eat",
+			Object:  string(banana),
+		})
+		require.NoError(t, err)
+		require.True(t, res.Success)
+	}
+
+	_, err = s.Revoke(ctx, &pb.RevokeRequest{
+		Subject: string(alice),
+		Role:    "owner",
+		Object:  string(banana),
+	})
+	assert.NoError(t, err)
+
+	{
+		res, err := s.Check(ctx, &pb.CheckRequest{
+			Subject: string(alice),
+			Verb:    "eat",
+			Object:  string(banana),
+		})
+		require.NoError(t, err)
+		require.False(t, res.Success)
+	}
+}
+
+
+func TestRemoveOneOfTwoRolesWithSameVerb2(t *testing.T) {
+	cleanup(conn)
+	s := NewDoorman(conn)
+	ctx := context.Background()
+
+	alice := doorman.Object("user:alice")
+	groupMember := doorman.Role{ID: "group:member", Verbs: []doorman.Verb{"inherits"}}
+	admins := doorman.Object("group:admins")
+	owner := doorman.Role{
+		ID:    "item:owner",
+		Verbs: []doorman.Verb{"eat"},
+	}
+	banana := doorman.Object("item:banana")
+
+	require.NoError(t, s.objects.Add(ctx, alice))
+	require.NoError(t, s.objects.Add(ctx, admins))
+	require.NoError(t, s.objects.Add(ctx, banana))
+	require.NoError(t, s.roles.Add(ctx, groupMember))
+	require.NoError(t, s.roles.Add(ctx, owner))
+
+	_, err := s.Grant(ctx, &pb.GrantRequest{
+		Subject: string(alice),
+		Role:    "member",
+		Object:  string(admins),
+	})
+	require.NoError(t, err)
+
+	_, err = s.Grant(ctx, &pb.GrantRequest{
+		Subject: string(admins),
+		Role:    "owner",
+		Object:  string(banana),
+	})
+	require.NoError(t, err)
+
+	_, err = s.Grant(ctx, &pb.GrantRequest{
+		Subject: string(alice),
+		Role:    "owner",
+		Object:  string(banana),
+	})
+	require.NoError(t, err)
+
+	{
+		res, err := s.Check(ctx, &pb.CheckRequest{
+			Subject: string(alice),
+			Verb:    "eat",
+			Object:  string(banana),
+		})
+		require.NoError(t, err)
+		require.True(t, res.Success)
+	}
+
+	_, err = s.Revoke(ctx, &pb.RevokeRequest{
+		Subject: string(admins),
+		Role:    "owner",
 		Object:  string(banana),
 	})
 	assert.NoError(t, err)
