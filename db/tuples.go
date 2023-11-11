@@ -10,9 +10,8 @@ import (
 	"github.com/td0m/doorman"
 )
 
-var ErrInvalidRole = errors.New("this role does not exist for the given object type")
+var ErrInvalidRole = errors.New("this role does not exist")
 var ErrCycle = errors.New("cycle detected")
-var ErrTupleNotFound = errors.New("tuple not found")
 
 type Tuples struct {
 	conn querier
@@ -40,6 +39,9 @@ func (t Tuples) Add(ctx context.Context, tuple doorman.Tuple) error {
 	if _, err := t.conn.Exec(ctx, query, tuple.Subject, tuple.Role, tuple.Object); err != nil {
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) {
+			if pgErr.ConstraintName == "tuples_pkey" && pgErr.Code == "23505" {
+				return doorman.ErrTupleExists
+			}
 			if pgErr.ConstraintName == "tuples_role_fkey" && pgErr.Code == "23503" {
 				return ErrInvalidRole
 			}
@@ -120,7 +122,7 @@ func (t Tuples) Remove(ctx context.Context, tuple doorman.Tuple) error {
 	}
 
 	if tag.RowsAffected() == 0 {
-		return ErrTupleNotFound
+		return doorman.ErrTupleNotFound
 	}
 
 	return nil

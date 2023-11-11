@@ -69,7 +69,7 @@ func TestCheckDirect(t *testing.T) {
 	t.Run("Grant", func(t *testing.T) {
 		_, err := s.Grant(ctx, &pb.GrantRequest{
 			Subject: string(alice),
-			Role:    "member",
+			Role:    member.ID,
 			Object:  string(admins),
 		})
 		require.NoError(t, err)
@@ -123,14 +123,14 @@ func TestCheckViaGroup(t *testing.T) {
 	t.Run("Grant", func(t *testing.T) {
 		_, err := s.Grant(ctx, &pb.GrantRequest{
 			Subject: string(alice),
-			Role:    "member",
+			Role:    member.ID,
 			Object:  string(admins),
 		})
 		require.NoError(t, err)
 
 		_, err = s.Grant(ctx, &pb.GrantRequest{
 			Subject: string(admins),
-			Role:    "owner",
+			Role:    owner.ID,
 			Object:  string(banana),
 		})
 		require.NoError(t, err)
@@ -186,23 +186,23 @@ func TestCheckViaTwoGroups(t *testing.T) {
 	t.Run("Grant", func(t *testing.T) {
 		_, err := s.Grant(ctx, &pb.GrantRequest{
 			Subject: string(alice),
-			Role:    "member",
+			Role:    member.ID,
 			Object:  string(superadmins),
 		})
 		require.NoError(t, err)
 
 		_, err = s.Grant(ctx, &pb.GrantRequest{
 			Subject: string(admins),
-			Role:    "owner",
+			Role:    owner.ID,
 			Object:  string(banana),
 		})
 		require.NoError(t, err)
 
 		_, err = s.Grant(ctx, &pb.GrantRequest{
 			Subject: string(superadmins),
-			Role:    "member",
+			Role:    member.ID,
 			Object:  string(admins),
-		})
+	})
 		require.NoError(t, err)
 	})
 
@@ -258,28 +258,28 @@ func TestCheckViaThreeGroups(t *testing.T) {
 	t.Run("Grant", func(t *testing.T) {
 		_, err := s.Grant(ctx, &pb.GrantRequest{
 			Subject: string(superadmins),
-			Role:    "member",
+			Role:    member.ID,
 			Object:  string(admins),
 		})
 		require.NoError(t, err)
 
 		_, err = s.Grant(ctx, &pb.GrantRequest{
 			Subject: string(duperadmins),
-			Role:    "member",
+			Role:    member.ID,
 			Object:  string(superadmins),
 		})
 		require.NoError(t, err)
 
 		_, err = s.Grant(ctx, &pb.GrantRequest{
 			Subject: string(alice),
-			Role:    "member",
+			Role:    member.ID,
 			Object:  string(duperadmins),
 		})
 		require.NoError(t, err)
 
 		_, err = s.Grant(ctx, &pb.GrantRequest{
 			Subject: string(admins),
-			Role:    "owner",
+			Role:    owner.ID,
 			Object:  string(banana),
 		})
 		require.NoError(t, err)
@@ -341,7 +341,7 @@ func TestCheckViaThreeGroupsGrantedInParallel(t *testing.T) {
 		g.Go(func() error {
 			_, err := s.Grant(ctx, &pb.GrantRequest{
 				Subject: string(alice),
-				Role:    "member",
+				Role:    member.ID,
 				Object:  string(duperadmins),
 			})
 			return err
@@ -350,7 +350,7 @@ func TestCheckViaThreeGroupsGrantedInParallel(t *testing.T) {
 		g.Go(func() error {
 			_, err := s.Grant(ctx, &pb.GrantRequest{
 				Subject: string(duperadmins),
-				Role:    "member",
+				Role:    member.ID,
 				Object:  string(superadmins),
 			})
 			return err
@@ -359,7 +359,7 @@ func TestCheckViaThreeGroupsGrantedInParallel(t *testing.T) {
 		g.Go(func() error {
 			_, err := s.Grant(ctx, &pb.GrantRequest{
 				Subject: string(superadmins),
-				Role:    "member",
+				Role:    member.ID,
 				Object:  string(admins),
 			})
 			return err
@@ -368,7 +368,7 @@ func TestCheckViaThreeGroupsGrantedInParallel(t *testing.T) {
 		g.Go(func() error {
 			_, err := s.Grant(ctx, &pb.GrantRequest{
 				Subject: string(admins),
-				Role:    "owner",
+				Role:    owner.ID,
 				Object:  string(banana),
 			})
 			return err
@@ -425,14 +425,14 @@ func TestCheckViaGroop(t *testing.T) {
 	t.Run("Grant", func(t *testing.T) {
 		_, err := s.Grant(ctx, &pb.GrantRequest{
 			Subject: string(alice),
-			Role:    "member",
+			Role:    member.ID,
 			Object:  string(admins),
 		})
 		require.NoError(t, err)
 
 		_, err = s.Grant(ctx, &pb.GrantRequest{
 			Subject: string(admins),
-			Role:    "owner",
+			Role:    owner.ID,
 			Object:  string(banana),
 		})
 		require.NoError(t, err)
@@ -487,21 +487,21 @@ func TestCheckViaGroupAndGroop(t *testing.T) {
 	t.Run("Grant", func(t *testing.T) {
 		_, err := s.Grant(ctx, &pb.GrantRequest{
 			Subject: string(admins),
-			Role:    "owner",
+			Role:    owner.ID,
 			Object:  string(banana),
 		})
 		require.NoError(t, err)
 
 		_, err = s.Grant(ctx, &pb.GrantRequest{
 			Subject: string(superadmins),
-			Role:    "member",
+			Role:    groopMember.ID,
 			Object:  string(admins),
 		})
 		require.NoError(t, err)
 
 		_, err = s.Grant(ctx, &pb.GrantRequest{
 			Subject: string(alice),
-			Role:    "member",
+			Role:    groupMember.ID,
 			Object:  string(superadmins),
 		})
 		require.NoError(t, err)
@@ -540,7 +540,7 @@ func TestConnectingToSelfFails(t *testing.T) {
 
 	_, err := s.Grant(ctx, &pb.GrantRequest{
 		Subject: string(admins),
-		Role:    "owner",
+		Role:    owner.ID,
 		Object:  string(banana),
 	})
 	require.NoError(t, err)
@@ -548,7 +548,7 @@ func TestConnectingToSelfFails(t *testing.T) {
 	t.Run("Fails directly", func(t *testing.T) {
 		_, err := s.Grant(ctx, &pb.GrantRequest{
 			Subject: string(banana),
-			Role:    "owner",
+			Role:    owner.ID,
 			Object:  string(banana),
 		})
 		require.ErrorIs(t, err, db.ErrCycle)
@@ -557,7 +557,7 @@ func TestConnectingToSelfFails(t *testing.T) {
 	t.Run("Fails indirectly", func(t *testing.T) {
 		_, err := s.Grant(ctx, &pb.GrantRequest{
 			Subject: string(banana),
-			Role:    "member",
+			Role:    groupMember.ID,
 			Object:  string(admins),
 		})
 		require.ErrorIs(t, err, db.ErrCycle)
@@ -591,7 +591,7 @@ func TestConnectingToSelfIndirectlyInParallelFails(t *testing.T) {
 		g.Go(func() error {
 			_, err := s.Grant(ctx, &pb.GrantRequest{
 				Subject: string(banana),
-				Role:    "member",
+				Role:    groupMember.ID,
 				Object:  string(admins),
 			})
 			return err
@@ -599,7 +599,7 @@ func TestConnectingToSelfIndirectlyInParallelFails(t *testing.T) {
 		g.Go(func() error {
 			_, err := s.Grant(ctx, &pb.GrantRequest{
 				Subject: string(admins),
-				Role:    "owner",
+				Role:    owner.ID,
 				Object:  string(banana),
 			})
 			return err
@@ -629,7 +629,7 @@ func TestCheckRevoke(t *testing.T) {
 
 	_, err := s.Grant(ctx, &pb.GrantRequest{
 		Subject: string(alice),
-		Role:    "owner",
+		Role:    owner.ID,
 		Object:  string(banana),
 	})
 	require.NoError(t, err)
@@ -697,14 +697,14 @@ func TestCheckRevokeOneOfTwo(t *testing.T) {
 
 	_, err := s.Grant(ctx, &pb.GrantRequest{
 		Subject: string(alice),
-		Role:    "owner",
+		Role:    owner.ID,
 		Object:  string(banana),
 	})
 	require.NoError(t, err)
 
 	_, err = s.Grant(ctx, &pb.GrantRequest{
 		Subject: string(alice),
-		Role:    "eater",
+		Role:    eater.ID,
 		Object:  string(banana),
 	})
 	require.NoError(t, err)
@@ -758,7 +758,7 @@ func TestCheckUpdateRole(t *testing.T) {
 
 	_, err := s.Grant(ctx, &pb.GrantRequest{
 		Subject: string(alice),
-		Role:    "owner",
+		Role:    owner.ID,
 		Object:  string(banana),
 	})
 	require.NoError(t, err)
@@ -836,7 +836,7 @@ func TestCheckUpsertRoleCreate(t *testing.T) {
 	t.Run("Success grant after role is created", func(t *testing.T) {
 		_, err := s.Grant(ctx, &pb.GrantRequest{
 			Subject: string(alice),
-			Role:    "owner",
+			Role:    "item:owner",
 			Object:  string(banana),
 		})
 		require.NoError(t, err)
@@ -862,7 +862,7 @@ func TestRemoveRole(t *testing.T) {
 
 	_, err := s.Grant(ctx, &pb.GrantRequest{
 		Subject: string(alice),
-		Role:    "owner",
+		Role:    owner.ID,
 		Object:  string(banana),
 	})
 	require.NoError(t, err)

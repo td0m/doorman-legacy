@@ -59,7 +59,7 @@ func (d *Doorman) Grant(ctx context.Context, request *pb.GrantRequest) (*pb.Gran
 
 	res, err := d.grantWithTx(ctx, tx, request)
 	if err != nil {
-		return nil, fmt.Errorf("grantWithTx failed: %w", err)
+		return nil, err
 	}
 
 	if err := tx.Commit(ctx); err != nil {
@@ -110,7 +110,7 @@ func (d *Doorman) RemoveRole(ctx context.Context, request *pb.RemoveRoleRequest)
 	for _, t := range tuples {
 		_, err := d.revokeWithTx(ctx, tx, &pb.RevokeRequest{
 			Subject: string(t.Subject),
-			Role:    doorman.Object(role.ID).Value(),
+			Role:    role.ID,
 			Object:  string(t.Object),
 		})
 		if err != nil {
@@ -137,7 +137,7 @@ func (d *Doorman) Revoke(ctx context.Context, request *pb.RevokeRequest) (*pb.Re
 
 	res, err := d.revokeWithTx(ctx, tx, request)
 	if err != nil {
-		return nil, fmt.Errorf("revokeWithTx failed: %w", err)
+		return nil, err
 	}
 
 	if err := tx.Commit(ctx); err != nil {
@@ -170,7 +170,7 @@ func (d *Doorman) UpsertRole(ctx context.Context, request *pb.UpsertRoleRequest)
 	for _, t := range tuples {
 		_, err := d.Revoke(ctx, &pb.RevokeRequest{
 			Subject: string(t.Subject),
-			Role:    doorman.Object(role.ID).Value(),
+			Role:    role.ID,
 			Object:  string(t.Object),
 		})
 		if err != nil {
@@ -191,7 +191,7 @@ func (d *Doorman) UpsertRole(ctx context.Context, request *pb.UpsertRoleRequest)
 	for _, t := range tuples {
 		_, err := d.grantWithTx(ctx, tx, &pb.GrantRequest{
 			Subject: string(t.Subject),
-			Role:    doorman.Object(role.ID).Value(),
+			Role:    role.ID,
 			Object:  string(t.Object),
 		})
 		if err != nil {
@@ -213,11 +213,14 @@ func (d *Doorman) grantWithTx(ctx context.Context, tx pgx.Tx, request *pb.GrantR
 
 	tuple := doorman.Tuple{
 		Subject: doorman.Object(request.Subject),
-		Role:    doorman.Object(request.Object).Type() + ":" + request.Role,
+		Role:    request.Role,
 		Object:  doorman.Object(request.Object),
 	}
 	if err := d.tuples.WithTx(tx).Add(ctx, tuple); err != nil {
-		return nil, fmt.Errorf("tuples.Add failed: %w, %w", err, tx.Rollback(ctx))
+		if err := tx.Rollback(ctx); err != nil {
+			return nil, fmt.Errorf("rollback failed after failing to add tuple: %w", err)
+		}
+		return nil, err
 	}
 
 	connectedObjectsAfter, err := d.tuples.WithTx(tx).ListConnected(ctx, tuple.Subject, false)
@@ -294,7 +297,7 @@ func (d *Doorman) revokeWithTx(ctx context.Context, tx pgx.Tx, request *pb.Revok
 
 	tuple := doorman.Tuple{
 		Subject: doorman.Object(request.Subject),
-		Role:    doorman.Object(request.Object).Type() + ":" + request.Role,
+		Role:    request.Role,
 		Object:  doorman.Object(request.Object),
 	}
 
@@ -303,7 +306,10 @@ func (d *Doorman) revokeWithTx(ctx context.Context, tx pgx.Tx, request *pb.Revok
 		return nil, fmt.Errorf("f failed: %w", err)
 	}
 	if err := d.tuples.WithTx(tx).Remove(ctx, tuple); err != nil {
-		return nil, fmt.Errorf("tuples.Remove failed: %w, %w", err, tx.Rollback(ctx))
+		if err := tx.Rollback(ctx); err != nil {
+			return nil, fmt.Errorf("rollback failed after failing to add tuple: %w", err)
+		}
+		return nil, err
 	}
 
 	if err := d.refreshParents(ctx, tx, tuple.Subject); err != nil {
