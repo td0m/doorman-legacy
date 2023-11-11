@@ -16,3 +16,7 @@ create table changes(
   created_at timestamptz not null default now()
 );
 
+create table roles(
+  id text primary key,
+  verbs text[] not null default '{}'
+);
