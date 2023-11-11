@@ -1,7 +1,22 @@
+-- drop table changes;
+-- drop table tuples;
+-- drop table roles;
+-- drop table objects;
+
+-- create table objects(
+--   id text primary key,
+--   key text unique
+-- );
+
+create table roles(
+  id text primary key,
+  verbs text[] not null default '{}'
+);
+
 create table tuples(
-  subject text not null references objects(id),
+  subject text not null,
   role text not null references roles(id),
-  object text not null references objects(id),
+  object text not null,
 
   primary key(subject, role, object)
 );
@@ -14,9 +29,4 @@ create table changes(
   type text not null,
   payload jsonb not null,
   created_at timestamptz not null default now()
-);
-
-create table roles(
-  id text primary key,
-  verbs text[] not null default '{}'
 );

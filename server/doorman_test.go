@@ -20,8 +20,6 @@ func cleanup(conn *pgxpool.Pool) {
 	_, err := conn.Exec(ctx, `
 		delete from tuples;
 		delete from roles;
-		delete from objects;
-		delete from relations;
 		delete from changes;
 	`)
 
