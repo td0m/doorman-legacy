@@ -254,37 +254,37 @@ func local_request_Doorman_UpsertRole_0(ctx context.Context, marshaler runtime.M
 }
 
 var (
-	filter_Doorman_ListRelations_0 = &utilities.DoubleArray{Encoding: map[string]int{}, Base: []int(nil), Check: []int(nil)}
+	filter_Doorman_ListObjects_0 = &utilities.DoubleArray{Encoding: map[string]int{}, Base: []int(nil), Check: []int(nil)}
 )
 
-func request_Doorman_ListRelations_0(ctx context.Context, marshaler runtime.Marshaler, client DoormanClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
-	var protoReq ListRelationsRequest
+func request_Doorman_ListObjects_0(ctx context.Context, marshaler runtime.Marshaler, client DoormanClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
+	var protoReq ListObjectsRequest
 	var metadata runtime.ServerMetadata
 
 	if err := req.ParseForm(); err != nil {
 		return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
 	}
-	if err := runtime.PopulateQueryParameters(&protoReq, req.Form, filter_Doorman_ListRelations_0); err != nil {
+	if err := runtime.PopulateQueryParameters(&protoReq, req.Form, filter_Doorman_ListObjects_0); err != nil {
 		return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
 	}
 
-	msg, err := client.ListRelations(ctx, &protoReq, grpc.Header(&metadata.HeaderMD), grpc.Trailer(&metadata.TrailerMD))
+	msg, err := client.ListObjects(ctx, &protoReq, grpc.Header(&metadata.HeaderMD), grpc.Trailer(&metadata.TrailerMD))
 	return msg, metadata, err
 
 }
 
-func local_request_Doorman_ListRelations_0(ctx context.Context, marshaler runtime.Marshaler, server DoormanServer, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
-	var protoReq ListRelationsRequest
+func local_request_Doorman_ListObjects_0(ctx context.Context, marshaler runtime.Marshaler, server DoormanServer, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
+	var protoReq ListObjectsRequest
 	var metadata runtime.ServerMetadata
 
 	if err := req.ParseForm(); err != nil {
 		return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
 	}
-	if err := runtime.PopulateQueryParameters(&protoReq, req.Form, filter_Doorman_ListRelations_0); err != nil {
+	if err := runtime.PopulateQueryParameters(&protoReq, req.Form, filter_Doorman_ListObjects_0); err != nil {
 		return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
 	}
 
-	msg, err := server.ListRelations(ctx, &protoReq)
+	msg, err := server.ListObjects(ctx, &protoReq)
 	return msg, metadata, err
 
 }
@@ -456,7 +456,7 @@ func RegisterDoormanHandlerServer(ctx context.Context, mux *runtime.ServeMux, se
 
 	})
 
-	mux.Handle("GET", pattern_Doorman_ListRelations_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
+	mux.Handle("GET", pattern_Doorman_ListObjects_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
 		ctx, cancel := context.WithCancel(req.Context())
 		defer cancel()
 		var stream runtime.ServerTransportStream
@@ -464,12 +464,12 @@ func RegisterDoormanHandlerServer(ctx context.Context, mux *runtime.ServeMux, se
 		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
 		var err error
 		var annotatedContext context.Context
-		annotatedContext, err = runtime.AnnotateIncomingContext(ctx, mux, req, "/doorman.Doorman/ListRelations", runtime.WithHTTPPathPattern("/relations"))
+		annotatedContext, err = runtime.AnnotateIncomingContext(ctx, mux, req, "/doorman.Doorman/ListObjects", runtime.WithHTTPPathPattern("/list-objects"))
 		if err != nil {
 			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
 			return
 		}
-		resp, md, err := local_request_Doorman_ListRelations_0(annotatedContext, inboundMarshaler, server, req, pathParams)
+		resp, md, err := local_request_Doorman_ListObjects_0(annotatedContext, inboundMarshaler, server, req, pathParams)
 		md.HeaderMD, md.TrailerMD = metadata.Join(md.HeaderMD, stream.Header()), metadata.Join(md.TrailerMD, stream.Trailer())
 		annotatedContext = runtime.NewServerMetadataContext(annotatedContext, md)
 		if err != nil {
@@ -477,7 +477,7 @@ func RegisterDoormanHandlerServer(ctx context.Context, mux *runtime.ServeMux, se
 			return
 		}
 
-		forward_Doorman_ListRelations_0(annotatedContext, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
+		forward_Doorman_ListObjects_0(annotatedContext, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
 
 	})
 
@@ -657,25 +657,25 @@ func RegisterDoormanHandlerClient(ctx context.Context, mux *runtime.ServeMux, cl
 
 	})
 
-	mux.Handle("GET", pattern_Doorman_ListRelations_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
+	mux.Handle("GET", pattern_Doorman_ListObjects_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
 		ctx, cancel := context.WithCancel(req.Context())
 		defer cancel()
 		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
 		var err error
 		var annotatedContext context.Context
-		annotatedContext, err = runtime.AnnotateContext(ctx, mux, req, "/doorman.Doorman/ListRelations", runtime.WithHTTPPathPattern("/relations"))
+		annotatedContext, err = runtime.AnnotateContext(ctx, mux, req, "/doorman.Doorman/ListObjects", runtime.WithHTTPPathPattern("/list-objects"))
 		if err != nil {
 			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
 			return
 		}
-		resp, md, err := request_Doorman_ListRelations_0(annotatedContext, inboundMarshaler, client, req, pathParams)
+		resp, md, err := request_Doorman_ListObjects_0(annotatedContext, inboundMarshaler, client, req, pathParams)
 		annotatedContext = runtime.NewServerMetadataContext(annotatedContext, md)
 		if err != nil {
 			runtime.HTTPError(annotatedContext, mux, outboundMarshaler, w, req, err)
 			return
 		}
 
-		forward_Doorman_ListRelations_0(annotatedContext, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
+		forward_Doorman_ListObjects_0(annotatedContext, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
 
 	})
 
@@ -715,7 +715,7 @@ var (
 
 	pattern_Doorman_UpsertRole_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 1, 0, 4, 1, 5, 1}, []string{"roles", "id"}, ""))
 
-	pattern_Doorman_ListRelations_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0}, []string{"relations"}, ""))
+	pattern_Doorman_ListObjects_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0}, []string{"list-objects"}, ""))
 
 	pattern_Doorman_Changes_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0}, []string{"changes"}, ""))
 )
@@ -731,7 +731,7 @@ var (
 
 	forward_Doorman_UpsertRole_0 = runtime.ForwardResponseMessage
 
-	forward_Doorman_ListRelations_0 = runtime.ForwardResponseMessage
+	forward_Doorman_ListObjects_0 = runtime.ForwardResponseMessage
 
 	forward_Doorman_Changes_0 = runtime.ForwardResponseMessage
 )

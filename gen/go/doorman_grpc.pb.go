@@ -19,13 +19,13 @@ import (
 const _ = grpc.SupportPackageIsVersion7
 
 const (
-	Doorman_Check_FullMethodName         = "/doorman.Doorman/Check"
-	Doorman_Grant_FullMethodName         = "/doorman.Doorman/Grant"
-	Doorman_Revoke_FullMethodName        = "/doorman.Doorman/Revoke"
-	Doorman_RemoveRole_FullMethodName    = "/doorman.Doorman/RemoveRole"
-	Doorman_UpsertRole_FullMethodName    = "/doorman.Doorman/UpsertRole"
-	Doorman_ListRelations_FullMethodName = "/doorman.Doorman/ListRelations"
-	Doorman_Changes_FullMethodName       = "/doorman.Doorman/Changes"
+	Doorman_Check_FullMethodName       = "/doorman.Doorman/Check"
+	Doorman_Grant_FullMethodName       = "/doorman.Doorman/Grant"
+	Doorman_Revoke_FullMethodName      = "/doorman.Doorman/Revoke"
+	Doorman_RemoveRole_FullMethodName  = "/doorman.Doorman/RemoveRole"
+	Doorman_UpsertRole_FullMethodName  = "/doorman.Doorman/UpsertRole"
+	Doorman_ListObjects_FullMethodName = "/doorman.Doorman/ListObjects"
+	Doorman_Changes_FullMethodName     = "/doorman.Doorman/Changes"
 )
 
 // DoormanClient is the client API for Doorman service.
@@ -37,7 +37,7 @@ type DoormanClient interface {
 	Revoke(ctx context.Context, in *RevokeRequest, opts ...grpc.CallOption) (*RevokeResponse, error)
 	RemoveRole(ctx context.Context, in *RemoveRoleRequest, opts ...grpc.CallOption) (*Role, error)
 	UpsertRole(ctx context.Context, in *UpsertRoleRequest, opts ...grpc.CallOption) (*Role, error)
-	ListRelations(ctx context.Context, in *ListRelationsRequest, opts ...grpc.CallOption) (*ListRelationsResponse, error)
+	ListObjects(ctx context.Context, in *ListObjectsRequest, opts ...grpc.CallOption) (*ListObjectsResponse, error)
 	Changes(ctx context.Context, in *ChangesRequest, opts ...grpc.CallOption) (*ChangesResponse, error)
 }
 
@@ -94,9 +94,9 @@ func (c *doormanClient) UpsertRole(ctx context.Context, in *UpsertRoleRequest, o
 	return out, nil
 }
 
-func (c *doormanClient) ListRelations(ctx context.Context, in *ListRelationsRequest, opts ...grpc.CallOption) (*ListRelationsResponse, error) {
-	out := new(ListRelationsResponse)
-	err := c.cc.Invoke(ctx, Doorman_ListRelations_FullMethodName, in, out, opts...)
+func (c *doormanClient) ListObjects(ctx context.Context, in *ListObjectsRequest, opts ...grpc.CallOption) (*ListObjectsResponse, error) {
+	out := new(ListObjectsResponse)
+	err := c.cc.Invoke(ctx, Doorman_ListObjects_FullMethodName, in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -121,7 +121,7 @@ type DoormanServer interface {
 	Revoke(context.Context, *RevokeRequest) (*RevokeResponse, error)
 	RemoveRole(context.Context, *RemoveRoleRequest) (*Role, error)
 	UpsertRole(context.Context, *UpsertRoleRequest) (*Role, error)
-	ListRelations(context.Context, *ListRelationsRequest) (*ListRelationsResponse, error)
+	ListObjects(context.Context, *ListObjectsRequest) (*ListObjectsResponse, error)
 	Changes(context.Context, *ChangesRequest) (*ChangesResponse, error)
 	mustEmbedUnimplementedDoormanServer()
 }
@@ -145,8 +145,8 @@ func (UnimplementedDoormanServer) RemoveRole(context.Context, *RemoveRoleRequest
 func (UnimplementedDoormanServer) UpsertRole(context.Context, *UpsertRoleRequest) (*Role, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpsertRole not implemented")
 }
-func (UnimplementedDoormanServer) ListRelations(context.Context, *ListRelationsRequest) (*ListRelationsResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method ListRelations not implemented")
+func (UnimplementedDoormanServer) ListObjects(context.Context, *ListObjectsRequest) (*ListObjectsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListObjects not implemented")
 }
 func (UnimplementedDoormanServer) Changes(context.Context, *ChangesRequest) (*ChangesResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Changes not implemented")
@@ -254,20 +254,20 @@ func _Doorman_UpsertRole_Handler(srv interface{}, ctx context.Context, dec func(
 	return interceptor(ctx, in, info, handler)
 }
 
-func _Doorman_ListRelations_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(ListRelationsRequest)
+func _Doorman_ListObjects_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListObjectsRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(DoormanServer).ListRelations(ctx, in)
+		return srv.(DoormanServer).ListObjects(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: Doorman_ListRelations_FullMethodName,
+		FullMethod: Doorman_ListObjects_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(DoormanServer).ListRelations(ctx, req.(*ListRelationsRequest))
+		return srv.(DoormanServer).ListObjects(ctx, req.(*ListObjectsRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -318,8 +318,8 @@ var Doorman_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _Doorman_UpsertRole_Handler,
 		},
 		{
-			MethodName: "ListRelations",
-			Handler:    _Doorman_ListRelations_Handler,
+			MethodName: "ListObjects",
+			Handler:    _Doorman_ListObjects_Handler,
 		},
 		{
 			MethodName: "Changes",

@@ -36,6 +36,17 @@ func (s sets) Remove(set doorman.Set) {
 	s.m[set] = false
 }
 
+func (s sets) ToList() []doorman.Set {
+	arr := []doorman.Set{}
+	for k, v := range s.m {
+		if !v {
+			continue
+		}
+		arr = append(arr, k)
+	}
+	return arr
+}
+
 var ErrStale = errors.New("stale cache")
 
 func (s Sets) Contains(ctx context.Context, set doorman.Set, subject doorman.Object) (bool, error) {
@@ -62,6 +73,11 @@ func (s Sets) Contains(ctx context.Context, set doorman.Set, subject doorman.Obj
 	}
 
 	return intersect(parents, subsets), nil
+}
+
+func (s Sets) ListParents(ctx context.Context, subject doorman.Object) ([]doorman.Set, error) {
+	parents := s.subject2parents[subject]
+	return parents.ToList(), nil
 }
 
 func (s Sets) UpdateParents(ctx context.Context, subject doorman.Object, sets []doorman.Set) error {

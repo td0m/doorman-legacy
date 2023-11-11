@@ -69,8 +69,25 @@ func (d *Doorman) Grant(ctx context.Context, request *pb.GrantRequest) (*pb.Gran
 	return res, nil
 }
 
-func (d *Doorman) ListRelations(ctx context.Context, request *pb.ListRelationsRequest) (*pb.ListRelationsResponse, error) {
-	return &pb.ListRelationsResponse{}, nil
+func (d *Doorman) ListObjects(ctx context.Context, request *pb.ListObjectsRequest) (*pb.ListObjectsResponse, error) {
+	sub := doorman.Object(request.Subject)
+	parents, err := d.sets.ListParents(ctx, sub)
+	if err != nil {
+		return nil, fmt.Errorf("sets.ListParents failed: %w", err)
+	}
+
+	items := make([]*pb.Relation, len(parents))
+	for i, parent := range parents {
+		items[i] = &pb.Relation{
+			Subject: string(sub),
+			Verb:    string(parent.Verb),
+			Object:  string(parent.Object),
+		}
+	}
+
+	return &pb.ListObjectsResponse{
+		Items: items,
+	}, nil
 }
 
 func (d *Doorman) RemoveRole(ctx context.Context, request *pb.RemoveRoleRequest) (*pb.Role, error) {
@@ -236,7 +253,6 @@ func (d *Doorman) refreshGroups(ctx context.Context, tx pgx.Tx, obj doorman.Obje
 		}
 	}
 
-
 	role, err := d.roles.Retrieve(ctx, roleId)
 	if err != nil {
 		return fmt.Errorf("roles.retrieve failed: %w", err)
@@ -289,7 +305,6 @@ func (d *Doorman) revokeWithTx(ctx context.Context, tx pgx.Tx, request *pb.Revok
 	if err := d.tuples.WithTx(tx).Remove(ctx, tuple); err != nil {
 		return nil, fmt.Errorf("tuples.Remove failed: %w, %w", err, tx.Rollback(ctx))
 	}
-
 
 	if err := d.refreshParents(ctx, tx, tuple.Subject); err != nil {
 		return nil, err
