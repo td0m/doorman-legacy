@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"flag"
 	"fmt"
 	"net"
 	"net/http"
@@ -22,6 +23,10 @@ import (
 )
 
 func run() error {
+	var noRebuild bool
+	flag.BoolVar(&noRebuild, "no-rebuild-on-start", false, "setting this to true will prevent rebuilding cache when the server is started.")
+	flag.Parse()
+
 	ctx := context.Background()
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -42,6 +47,13 @@ func run() error {
 	}
 
 	srv := server.NewDoorman(conn)
+
+	if !noRebuild {
+		_, err := srv.RebuildCache(ctx, &pb.RebuildCacheRequest{})
+		if err != nil {
+			return fmt.Errorf("rebuilding cache on startup failed: %w", err)
+		}
+	}
 
 	s := grpc.NewServer()
 	pb.RegisterDoormanServer(s, srv)
