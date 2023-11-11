@@ -19,6 +19,7 @@ func (c Changes) WithTx(tx pgx.Tx) *Changes {
 
 type ChangeFilter struct {
 	PaginationToken *string `db:"id" op:">"`
+	Status          *string
 }
 
 func (cs Changes) Add(ctx context.Context, c doorman.Change) error {
@@ -42,8 +43,6 @@ func (cs Changes) List(ctx context.Context, f ChangeFilter) ([]doorman.Change, e
 		order by id
 	`
 
-	fmt.Println("where", where, f)
-
 	rows, err := cs.conn.Query(ctx, query, params...)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %w", err)
@@ -59,6 +58,19 @@ func (cs Changes) List(ctx context.Context, f ChangeFilter) ([]doorman.Change, e
 	}
 
 	return changes, nil
+}
+
+func (cs Changes) SetStatusOfAll(ctx context.Context, status string) error {
+	query := `
+		update changes
+		set status = $1
+	`
+
+	if _, err := cs.conn.Exec(ctx, query, status); err != nil {
+		return fmt.Errorf("exec failed: %w", err)
+	}
+
+	return nil
 }
 
 func NewChanges(pool *pgxpool.Pool) Changes {

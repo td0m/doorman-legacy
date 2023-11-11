@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -12,6 +13,42 @@ import (
 	pb "github.com/td0m/doorman/gen/go"
 	"golang.org/x/sync/errgroup"
 )
+
+func processAllChanges(srv *Doorman) {
+	ctx := context.Background()
+	for {
+		pending := "pending"
+		changes, err := srv.changes.List(ctx, db.ChangeFilter{
+			Status: &pending,
+		})
+		if err != nil {
+			panic(fmt.Errorf("listing pending changes failed: %w", err))
+		}
+		if len(changes) == 0 {
+			return
+		}
+
+		if err := srv.ProcessChange(); err != nil {
+			panic(err)
+		}
+	}
+}
+
+func check(s *Doorman, sub doorman.Object, verb string, obj doorman.Object) *pb.CheckResponse {
+	processAllChanges(s)
+
+	ctx := context.Background()
+	res, err := s.Check(ctx, &pb.CheckRequest{
+		Subject: string(sub),
+		Verb:    verb,
+		Object:  string(obj),
+	})
+	if err != nil {
+		panic(fmt.Errorf("check failed: %w", err))
+	}
+
+	return res
+}
 
 var conn *pgxpool.Pool
 
@@ -57,12 +94,7 @@ func TestCheckDirect(t *testing.T) {
 	require.NoError(t, s.roles.Add(ctx, member))
 
 	t.Run("Failure: Check before granting", func(t *testing.T) {
-		res, err := s.Check(ctx, &pb.CheckRequest{
-			Subject: string(alice),
-			Verb:    "inherits",
-			Object:  string(admins),
-		})
-		require.NoError(t, err)
+		res := check(s, alice, "inherits", admins)
 		require.Equal(t, false, res.Success)
 	})
 
@@ -76,12 +108,7 @@ func TestCheckDirect(t *testing.T) {
 	})
 
 	t.Run("Success: Check after granting", func(t *testing.T) {
-		res, err := s.Check(ctx, &pb.CheckRequest{
-			Subject: string(alice),
-			Verb:    "inherits",
-			Object:  string(admins),
-		})
-		require.NoError(t, err)
+		res := check(s, alice, "inherits", admins)
 		require.Equal(t, true, res.Success)
 	})
 }
@@ -111,12 +138,7 @@ func TestCheckViaGroup(t *testing.T) {
 	require.NoError(t, s.roles.Add(ctx, owner))
 
 	t.Run("Failure: Check before granting", func(t *testing.T) {
-		res, err := s.Check(ctx, &pb.CheckRequest{
-			Subject: string(alice),
-			Verb:    "eat",
-			Object:  string(banana),
-		})
-		require.NoError(t, err)
+		res := check(s, alice, "eat", banana)
 		require.Equal(t, false, res.Success)
 	})
 
@@ -137,12 +159,7 @@ func TestCheckViaGroup(t *testing.T) {
 	})
 
 	t.Run("Success: Check after granting", func(t *testing.T) {
-		res, err := s.Check(ctx, &pb.CheckRequest{
-			Subject: string(alice),
-			Verb:    "eat",
-			Object:  string(banana),
-		})
-		require.NoError(t, err)
+		res := check(s, alice, "eat", banana)
 		require.Equal(t, true, res.Success)
 	})
 }
@@ -174,12 +191,7 @@ func TestCheckViaTwoGroups(t *testing.T) {
 	require.NoError(t, s.roles.Add(ctx, owner))
 
 	t.Run("Failure: Check before granting", func(t *testing.T) {
-		res, err := s.Check(ctx, &pb.CheckRequest{
-			Subject: string(alice),
-			Verb:    "eat",
-			Object:  string(banana),
-		})
-		require.NoError(t, err)
+		res := check(s, alice, "eat", banana)
 		require.Equal(t, false, res.Success)
 	})
 
@@ -207,12 +219,7 @@ func TestCheckViaTwoGroups(t *testing.T) {
 	})
 
 	t.Run("Success: Check after granting", func(t *testing.T) {
-		res, err := s.Check(ctx, &pb.CheckRequest{
-			Subject: string(alice),
-			Verb:    "eat",
-			Object:  string(banana),
-		})
-		require.NoError(t, err)
+		res := check(s, alice, "eat", banana)
 		require.Equal(t, true, res.Success)
 	})
 }
@@ -246,12 +253,7 @@ func TestCheckViaThreeGroups(t *testing.T) {
 	require.NoError(t, s.roles.Add(ctx, owner))
 
 	t.Run("Failure: Check before granting", func(t *testing.T) {
-		res, err := s.Check(ctx, &pb.CheckRequest{
-			Subject: string(alice),
-			Verb:    "eat",
-			Object:  string(banana),
-		})
-		require.NoError(t, err)
+		res := check(s, alice, "eat", banana)
 		require.Equal(t, false, res.Success)
 	})
 
@@ -287,12 +289,7 @@ func TestCheckViaThreeGroups(t *testing.T) {
 	})
 
 	t.Run("Success: Check after granting", func(t *testing.T) {
-		res, err := s.Check(ctx, &pb.CheckRequest{
-			Subject: string(alice),
-			Verb:    "eat",
-			Object:  string(banana),
-		})
-		require.NoError(t, err)
+		res := check(s, alice, "eat", banana)
 		require.Equal(t, true, res.Success)
 	})
 }
@@ -326,12 +323,7 @@ func TestCheckViaThreeGroupsGrantedInParallel(t *testing.T) {
 	require.NoError(t, s.roles.Add(ctx, owner))
 
 	t.Run("Failure: Check before granting", func(t *testing.T) {
-		res, err := s.Check(ctx, &pb.CheckRequest{
-			Subject: string(alice),
-			Verb:    "eat",
-			Object:  string(banana),
-		})
-		require.NoError(t, err)
+		res := check(s, alice, "eat", banana)
 		require.Equal(t, false, res.Success)
 	})
 
@@ -378,12 +370,7 @@ func TestCheckViaThreeGroupsGrantedInParallel(t *testing.T) {
 	})
 
 	t.Run("Success: Check after granting", func(t *testing.T) {
-		res, err := s.Check(ctx, &pb.CheckRequest{
-			Subject: string(alice),
-			Verb:    "eat",
-			Object:  string(banana),
-		})
-		require.NoError(t, err)
+		res := check(s, alice, "eat", banana)
 		require.Equal(t, true, res.Success)
 	})
 }
@@ -413,12 +400,7 @@ func TestCheckViaGroop(t *testing.T) {
 	require.NoError(t, s.roles.Add(ctx, owner))
 
 	t.Run("Failure: Check before granting", func(t *testing.T) {
-		res, err := s.Check(ctx, &pb.CheckRequest{
-			Subject: string(alice),
-			Verb:    "eat",
-			Object:  string(banana),
-		})
-		require.NoError(t, err)
+		res := check(s, alice, "eat", banana)
 		require.Equal(t, false, res.Success)
 	})
 
@@ -439,12 +421,7 @@ func TestCheckViaGroop(t *testing.T) {
 	})
 
 	t.Run("Success: Check after granting", func(t *testing.T) {
-		res, err := s.Check(ctx, &pb.CheckRequest{
-			Subject: string(alice),
-			Verb:    "eat",
-			Object:  string(banana),
-		})
-		require.NoError(t, err)
+		res := check(s, alice, "eat", banana)
 		require.Equal(t, false, res.Success)
 	})
 }
@@ -475,12 +452,7 @@ func TestCheckViaGroupAndGroop(t *testing.T) {
 	require.NoError(t, s.roles.Add(ctx, owner))
 
 	t.Run("Failure: Check before granting", func(t *testing.T) {
-		res, err := s.Check(ctx, &pb.CheckRequest{
-			Subject: string(alice),
-			Verb:    "eat",
-			Object:  string(banana),
-		})
-		require.NoError(t, err)
+		res := check(s, alice, "eat", banana)
 		require.Equal(t, false, res.Success)
 	})
 
@@ -508,12 +480,7 @@ func TestCheckViaGroupAndGroop(t *testing.T) {
 	})
 
 	t.Run("Success: Check after granting", func(t *testing.T) {
-		res, err := s.Check(ctx, &pb.CheckRequest{
-			Subject: string(alice),
-			Verb:    "eat",
-			Object:  string(banana),
-		})
-		require.NoError(t, err)
+		res := check(s, alice, "eat", banana)
 		require.Equal(t, false, res.Success)
 	})
 
@@ -635,12 +602,7 @@ func TestCheckRevoke(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Run("Success: Check before revoking", func(t *testing.T) {
-		res, err := s.Check(ctx, &pb.CheckRequest{
-			Subject: string(alice),
-			Verb:    "eat",
-			Object:  string(banana),
-		})
-		require.NoError(t, err)
+		res := check(s, alice, "eat", banana)
 		require.Equal(t, true, res.Success)
 	})
 
@@ -663,12 +625,7 @@ func TestCheckRevoke(t *testing.T) {
 	})
 
 	t.Run("Failure: Check after revoking", func(t *testing.T) {
-		res, err := s.Check(ctx, &pb.CheckRequest{
-			Subject: string(alice),
-			Verb:    "eat",
-			Object:  string(banana),
-		})
-		require.NoError(t, err)
+		res := check(s, alice, "eat", banana)
 		require.Equal(t, false, res.Success)
 	})
 }
@@ -710,12 +667,7 @@ func TestCheckRevokeOneOfTwo(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Run("Success: Check before revoking", func(t *testing.T) {
-		res, err := s.Check(ctx, &pb.CheckRequest{
-			Subject: string(alice),
-			Verb:    "eat",
-			Object:  string(banana),
-		})
-		require.NoError(t, err)
+		res := check(s, alice, "eat", banana)
 		require.Equal(t, true, res.Success)
 	})
 
@@ -729,12 +681,7 @@ func TestCheckRevokeOneOfTwo(t *testing.T) {
 	})
 
 	t.Run("Success: Check after revoking", func(t *testing.T) {
-		res, err := s.Check(ctx, &pb.CheckRequest{
-			Subject: string(alice),
-			Verb:    "eat",
-			Object:  string(banana),
-		})
-		require.NoError(t, err)
+		res := check(s, alice, "eat", banana)
 		require.Equal(t, true, res.Success)
 	})
 }
@@ -764,20 +711,10 @@ func TestCheckUpdateRole(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Run("Check before revoking", func(t *testing.T) {
-		res, err := s.Check(ctx, &pb.CheckRequest{
-			Subject: string(alice),
-			Verb:    "eat",
-			Object:  string(banana),
-		})
-		assert.NoError(t, err)
+		res := check(s, alice, "eat", banana)
 		assert.Equal(t, true, res.Success)
 
-		res, err = s.Check(ctx, &pb.CheckRequest{
-			Subject: string(alice),
-			Verb:    "drink",
-			Object:  string(banana),
-		})
-		assert.NoError(t, err)
+		res = check(s, alice, "drink", banana)
 		assert.Equal(t, false, res.Success)
 	})
 
@@ -788,20 +725,10 @@ func TestCheckUpdateRole(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Run("Check after revoking", func(t *testing.T) {
-		res, err := s.Check(ctx, &pb.CheckRequest{
-			Subject: string(alice),
-			Verb:    "eat",
-			Object:  string(banana),
-		})
-		assert.NoError(t, err)
+		res := check(s, alice, "eat", banana)
 		assert.Equal(t, false, res.Success)
 
-		res, err = s.Check(ctx, &pb.CheckRequest{
-			Subject: string(alice),
-			Verb:    "drink",
-			Object:  string(banana),
-		})
-		assert.NoError(t, err)
+		res = check(s, alice, "drink", banana)
 		assert.Equal(t, true, res.Success)
 	})
 }
@@ -868,12 +795,7 @@ func TestRemoveRole(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Run("Can access role before removing", func(t *testing.T) {
-		res, err := s.Check(ctx, &pb.CheckRequest{
-			Subject: string(alice),
-			Verb:    "eat",
-			Object:  string(banana),
-		})
-		require.NoError(t, err)
+		res := check(s, alice, "eat", banana)
 		require.Equal(t, true, res.Success)
 	})
 
@@ -892,12 +814,7 @@ func TestRemoveRole(t *testing.T) {
 	})
 
 	t.Run("Removed existing tuples with the role", func(t *testing.T) {
-		res, err := s.Check(ctx, &pb.CheckRequest{
-			Subject: string(alice),
-			Verb:    "eat",
-			Object:  string(banana),
-		})
-		require.NoError(t, err)
+		res := check(s, alice, "eat", banana)
 		require.Equal(t, false, res.Success)
 	})
 }
@@ -984,12 +901,7 @@ func TestRemoveOneOfTwoRolesWithSameVerb(t *testing.T) {
 	require.NoError(t, err)
 
 	{
-		res, err := s.Check(ctx, &pb.CheckRequest{
-			Subject: string(alice),
-			Verb:    "eat",
-			Object:  string(banana),
-		})
-		require.NoError(t, err)
+		res := check(s, alice, "eat", banana)
 		require.True(t, res.Success)
 	}
 
@@ -1001,12 +913,7 @@ func TestRemoveOneOfTwoRolesWithSameVerb(t *testing.T) {
 	assert.NoError(t, err)
 
 	{
-		res, err := s.Check(ctx, &pb.CheckRequest{
-			Subject: string(alice),
-			Verb:    "eat",
-			Object:  string(banana),
-		})
-		require.NoError(t, err)
+		res := check(s, alice, "eat", banana)
 		require.True(t, res.Success)
 	}
 
@@ -1018,12 +925,7 @@ func TestRemoveOneOfTwoRolesWithSameVerb(t *testing.T) {
 	assert.NoError(t, err)
 
 	{
-		res, err := s.Check(ctx, &pb.CheckRequest{
-			Subject: string(alice),
-			Verb:    "eat",
-			Object:  string(banana),
-		})
-		require.NoError(t, err)
+		res := check(s, alice, "eat", banana)
 		require.False(t, res.Success)
 	}
 }
@@ -1070,12 +972,7 @@ func TestRemoveOneOfTwoRolesWithSameVerb2(t *testing.T) {
 	require.NoError(t, err)
 
 	{
-		res, err := s.Check(ctx, &pb.CheckRequest{
-			Subject: string(alice),
-			Verb:    "eat",
-			Object:  string(banana),
-		})
-		require.NoError(t, err)
+		res := check(s, alice, "eat", banana)
 		require.True(t, res.Success)
 	}
 
@@ -1087,12 +984,7 @@ func TestRemoveOneOfTwoRolesWithSameVerb2(t *testing.T) {
 	assert.NoError(t, err)
 
 	{
-		res, err := s.Check(ctx, &pb.CheckRequest{
-			Subject: string(alice),
-			Verb:    "eat",
-			Object:  string(banana),
-		})
-		require.NoError(t, err)
+		res := check(s, alice, "eat", banana)
 		require.True(t, res.Success)
 	}
 
@@ -1104,12 +996,7 @@ func TestRemoveOneOfTwoRolesWithSameVerb2(t *testing.T) {
 	assert.NoError(t, err)
 
 	{
-		res, err := s.Check(ctx, &pb.CheckRequest{
-			Subject: string(alice),
-			Verb:    "eat",
-			Object:  string(banana),
-		})
-		require.NoError(t, err)
+		res := check(s, alice, "eat", banana)
 		require.False(t, res.Success)
 	}
 }

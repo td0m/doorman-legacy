@@ -115,11 +115,13 @@ func app(ctx context.Context) error {
 		if err != nil {
 			return err
 		}
-
-		for _, i := range res.Items {
-			fmt.Printf("-> %s %s\n", i.Verb, i.Object)
-		}
 		printRelations(res.Items)
+
+	case "rebuild-cache":
+		_, err := srv.RebuildCache(ctx, &pb.RebuildCacheRequest{})
+		if err != nil {
+			return err
+		}
 
 	case "roles":
 		os.Args = os.Args[1:]

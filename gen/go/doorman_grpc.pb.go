@@ -19,14 +19,15 @@ import (
 const _ = grpc.SupportPackageIsVersion7
 
 const (
-	Doorman_Check_FullMethodName       = "/doorman.Doorman/Check"
-	Doorman_Grant_FullMethodName       = "/doorman.Doorman/Grant"
-	Doorman_Revoke_FullMethodName      = "/doorman.Doorman/Revoke"
-	Doorman_ListRoles_FullMethodName   = "/doorman.Doorman/ListRoles"
-	Doorman_RemoveRole_FullMethodName  = "/doorman.Doorman/RemoveRole"
-	Doorman_UpsertRole_FullMethodName  = "/doorman.Doorman/UpsertRole"
-	Doorman_ListObjects_FullMethodName = "/doorman.Doorman/ListObjects"
-	Doorman_Changes_FullMethodName     = "/doorman.Doorman/Changes"
+	Doorman_Check_FullMethodName        = "/doorman.Doorman/Check"
+	Doorman_Grant_FullMethodName        = "/doorman.Doorman/Grant"
+	Doorman_Revoke_FullMethodName       = "/doorman.Doorman/Revoke"
+	Doorman_ListRoles_FullMethodName    = "/doorman.Doorman/ListRoles"
+	Doorman_RemoveRole_FullMethodName   = "/doorman.Doorman/RemoveRole"
+	Doorman_UpsertRole_FullMethodName   = "/doorman.Doorman/UpsertRole"
+	Doorman_ListObjects_FullMethodName  = "/doorman.Doorman/ListObjects"
+	Doorman_Changes_FullMethodName      = "/doorman.Doorman/Changes"
+	Doorman_RebuildCache_FullMethodName = "/doorman.Doorman/RebuildCache"
 )
 
 // DoormanClient is the client API for Doorman service.
@@ -41,6 +42,7 @@ type DoormanClient interface {
 	UpsertRole(ctx context.Context, in *UpsertRoleRequest, opts ...grpc.CallOption) (*Role, error)
 	ListObjects(ctx context.Context, in *ListObjectsRequest, opts ...grpc.CallOption) (*ListObjectsResponse, error)
 	Changes(ctx context.Context, in *ChangesRequest, opts ...grpc.CallOption) (*ChangesResponse, error)
+	RebuildCache(ctx context.Context, in *RebuildCacheRequest, opts ...grpc.CallOption) (*RebuildCacheResponse, error)
 }
 
 type doormanClient struct {
@@ -123,6 +125,15 @@ func (c *doormanClient) Changes(ctx context.Context, in *ChangesRequest, opts ..
 	return out, nil
 }
 
+func (c *doormanClient) RebuildCache(ctx context.Context, in *RebuildCacheRequest, opts ...grpc.CallOption) (*RebuildCacheResponse, error) {
+	out := new(RebuildCacheResponse)
+	err := c.cc.Invoke(ctx, Doorman_RebuildCache_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // DoormanServer is the server API for Doorman service.
 // All implementations must embed UnimplementedDoormanServer
 // for forward compatibility
@@ -135,6 +146,7 @@ type DoormanServer interface {
 	UpsertRole(context.Context, *UpsertRoleRequest) (*Role, error)
 	ListObjects(context.Context, *ListObjectsRequest) (*ListObjectsResponse, error)
 	Changes(context.Context, *ChangesRequest) (*ChangesResponse, error)
+	RebuildCache(context.Context, *RebuildCacheRequest) (*RebuildCacheResponse, error)
 	mustEmbedUnimplementedDoormanServer()
 }
 
@@ -165,6 +177,9 @@ func (UnimplementedDoormanServer) ListObjects(context.Context, *ListObjectsReque
 }
 func (UnimplementedDoormanServer) Changes(context.Context, *ChangesRequest) (*ChangesResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Changes not implemented")
+}
+func (UnimplementedDoormanServer) RebuildCache(context.Context, *RebuildCacheRequest) (*RebuildCacheResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method RebuildCache not implemented")
 }
 func (UnimplementedDoormanServer) mustEmbedUnimplementedDoormanServer() {}
 
@@ -323,6 +338,24 @@ func _Doorman_Changes_Handler(srv interface{}, ctx context.Context, dec func(int
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Doorman_RebuildCache_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RebuildCacheRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DoormanServer).RebuildCache(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Doorman_RebuildCache_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DoormanServer).RebuildCache(ctx, req.(*RebuildCacheRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // Doorman_ServiceDesc is the grpc.ServiceDesc for Doorman service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -361,6 +394,10 @@ var Doorman_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "Changes",
 			Handler:    _Doorman_Changes_Handler,
+		},
+		{
+			MethodName: "RebuildCache",
+			Handler:    _Doorman_RebuildCache_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

@@ -28,5 +28,6 @@ create table changes(
   id text primary key,
   type text not null,
   payload jsonb not null,
+  status text not null default 'pending',
   created_at timestamptz not null default now()
 );

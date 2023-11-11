@@ -53,6 +53,13 @@ service Doorman {
 			get: "/changes"
 		};
 	};
+
+	rpc RebuildCache(RebuildCacheRequest) returns (RebuildCacheResponse) {
+		option (google.api.http) = {
+			post: "/rebuild-cache"
+			body: "*"
+		};
+	};
 }
 
 message Change {
@@ -136,3 +143,9 @@ message ListRolesRequest {}
 message ListRolesResponse {
 	repeated Role items = 1;
 }
+
+message RebuildCacheRequest {}
+
+message RebuildCacheResponse {
+}
+

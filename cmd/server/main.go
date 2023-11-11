@@ -14,6 +14,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	pb "github.com/td0m/doorman/gen/go"
 	"github.com/td0m/doorman/server"
+	"golang.org/x/exp/slog"
 	"golang.org/x/net/http2"
 	"golang.org/x/net/http2/h2c"
 	"google.golang.org/grpc"
@@ -70,6 +71,14 @@ func run() error {
 		}
 
 	}(sock)
+
+	go func() {
+		for {
+			if err := srv.ProcessChange(); err != nil {
+				slog.Error("failed to process change: %w", err)
+			}
+		}
+	}()
 
 	<-sigchan
 	return nil
