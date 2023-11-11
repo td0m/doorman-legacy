@@ -20,6 +20,8 @@ type Doorman struct {
 
 	conn *pgxpool.Pool
 
+	processing chan bool
+
 	sets    db.Sets
 	changes db.Changes
 	objects db.Objects
@@ -70,7 +72,15 @@ func (d *Doorman) Grant(ctx context.Context, request *pb.GrantRequest) (*pb.Gran
 		return nil, fmt.Errorf("tx.Commit failed: %w", err)
 	}
 
+	d.processChangesImmediately()
+
 	return res, nil
+}
+
+func (d *Doorman) processChangesImmediately() {
+	go func() {
+		d.processing <- true
+	}()
 }
 
 func (d *Doorman) ListObjects(ctx context.Context, request *pb.ListObjectsRequest) (*pb.ListObjectsResponse, error) {
@@ -111,7 +121,7 @@ func (d *Doorman) ListRoles(ctx context.Context, request *pb.ListRolesRequest) (
 }
 
 func (d *Doorman) ProcessChange() error {
-	timeout := time.Second * 3
+	timeout := time.Second * 5
 	stalePeriod := time.Hour
 
 	// This timeout should be higher than the "timeout", otherwise the tx.Commit will fail
@@ -142,7 +152,12 @@ func (d *Doorman) ProcessChange() error {
 	// No rows = no tasks
 	if err == pgx.ErrNoRows {
 		slog.Debug("no tasks, sleeping")
-		time.Sleep(timeout)
+
+		select {
+		case <-d.processing:
+		case <-time.After(timeout):
+		}
+
 		if err := tx.Commit(ctx); err != nil {
 			return fmt.Errorf("tx failed to commit: %w", err)
 		}
@@ -242,6 +257,8 @@ func (d *Doorman) Revoke(ctx context.Context, request *pb.RevokeRequest) (*pb.Re
 		return nil, fmt.Errorf("tx.Commit failed: %w", err)
 	}
 
+	d.processChangesImmediately()
+
 	return res, nil
 }
 
@@ -300,6 +317,8 @@ func (d *Doorman) UpsertRole(ctx context.Context, request *pb.UpsertRoleRequest)
 	if err := tx.Commit(ctx); err != nil {
 		return nil, fmt.Errorf("tx.Commit failed: %w", err)
 	}
+
+	d.processChangesImmediately()
 
 	return mapRoleToPb(*role), nil
 }
@@ -502,7 +521,7 @@ func (d *Doorman) revokeWithTx(ctx context.Context, tx pgx.Tx, request *pb.Revok
 }
 
 func NewDoorman(conn *pgxpool.Pool) *Doorman {
-	return &Doorman{conn: conn, changes: db.NewChanges(conn), sets: db.NewSets(conn), roles: db.NewRoles(conn), tuples: db.NewTuples(conn), objects: db.NewObjects(conn)}
+	return &Doorman{processing: make(chan bool, 1), conn: conn, changes: db.NewChanges(conn), sets: db.NewSets(conn), roles: db.NewRoles(conn), tuples: db.NewTuples(conn), objects: db.NewObjects(conn)}
 }
 
 func mapChangeToPb(c doorman.Change) *pb.Change {
