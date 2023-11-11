@@ -7,6 +7,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/td0m/doorman"
+	"golang.org/x/exp/slices"
 )
 
 type Roles struct {
@@ -34,6 +35,7 @@ func (r Roles) List(ctx context.Context) ([]doorman.Role, error) {
 	query := `
 		select id, verbs
 		from roles
+		order by id
 	`
 
 	var roles []doorman.Role
@@ -48,6 +50,7 @@ func (r Roles) List(ctx context.Context) ([]doorman.Role, error) {
 		if err := rows.Scan(&role.ID, &role.Verbs); err != nil {
 			return nil, fmt.Errorf("scan failed: %w", err)
 		}
+		slices.Sort(role.Verbs)
 		roles = append(roles, role)
 	}
 
