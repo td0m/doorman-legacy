@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/k0kubun/pp/v3"
 	"github.com/td0m/doorman"
 )
 
@@ -12,8 +13,7 @@ type Sets struct {
 	conn            querier
 	subject2parents map[doorman.Object]sets
 	// recursive subsets
-	set2subset   map[doorman.Set]sets
-	set2superset map[doorman.Set]sets
+	set2subset map[doorman.Set]sets
 }
 
 type sets struct {
@@ -40,20 +40,24 @@ var ErrStale = errors.New("stale cache")
 
 func (s Sets) Contains(ctx context.Context, set doorman.Set, subject doorman.Object) (bool, error) {
 	parents, ok := s.subject2parents[subject]
-	if !ok || parents.stale {
-		return false, ErrStale
+	if !ok {
+		return false, nil
 	}
 
 	subsets, ok := s.set2subset[set]
-	if !ok || subsets.stale {
-		// CONSIDER
+	if true {
+		fmt.Println("check", set, subject)
+		pp.Println("parents", parents)
+		pp.Println("subsets", subsets)
+	}
+	if !ok {
 		self := newSets()
 		self.Add(set)
 		if intersect(parents, self) {
 			fmt.Println("cache!")
 			return true, nil
 		} else {
-			return false, ErrStale
+			return false, nil
 		}
 	}
 
@@ -67,14 +71,16 @@ func (s Sets) UpdateParents(ctx context.Context, subject doorman.Object, sets []
 
 func (s Sets) InvalidateParents(ctx context.Context, subject doorman.Object) error {
 	sets := newSets()
-	sets.stale = true
 	s.subject2parents[subject] = sets
 	return nil
 }
 
-
-func (s Sets) UpdateSubsets(ctx context.Context, set, subsets []doorman.Set) error {
+func (s Sets) UpdateSubsets(ctx context.Context, set doorman.Set, subsets []doorman.Set) error {
+	fmt.Println("updateSubsets", set, subsets)
 	// return s.modifySubset(ctx, set, subset, true)
+	subsetsWithSelf := setsFromList(subsets)
+	subsetsWithSelf.Add(set)
+	s.set2subset[set] = subsetsWithSelf
 	return nil
 }
 
@@ -100,6 +106,5 @@ func NewSets(q querier) Sets {
 		conn:            q,
 		subject2parents: map[doorman.Object]sets{},
 		set2subset:      map[doorman.Set]sets{},
-		set2superset:    map[doorman.Set]sets{},
 	}
 }

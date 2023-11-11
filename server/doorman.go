@@ -41,65 +41,14 @@ func (d *Doorman) Changes(ctx context.Context, request *pb.ChangesRequest) (*pb.
 }
 
 func (d *Doorman) Check(ctx context.Context, request *pb.CheckRequest) (*pb.CheckResponse, error) {
-	{
-		success, err := d.sets.Contains(ctx, doorman.Set{
-			Object: doorman.Object(request.Object),
-			Verb:   doorman.Verb(request.Verb),
-		}, doorman.Object(request.Subject))
-		if err != nil && err != db.ErrStale {
-			return nil, fmt.Errorf("check failed: %w", err)
-		}
-
-		if err == nil {
-			return &pb.CheckResponse{Success: success}, nil
-		}
-	}
-
-	tuples, err := d.tuples.ListParents(ctx, doorman.Object(request.Subject))
+	success, err := d.sets.Contains(ctx, doorman.Set{
+		Object: doorman.Object(request.Object),
+		Verb:   doorman.Verb(request.Verb),
+	}, doorman.Object(request.Subject))
 	if err != nil {
-		return nil, fmt.Errorf("listparents failed: %w", err)
+		return &pb.CheckResponse{}, fmt.Errorf("check failed: %w", err)
 	}
-
-	parentSets, err := doorman.ParentTuplesToSets(ctx, tuples, d.roles.Retrieve)
-	if err != nil {
-		return nil, fmt.Errorf("pts failed: %w", err)
-	}
-
-	_ = d.sets.UpdateParents(ctx, doorman.Object(request.Subject), parentSets)
-
-	// Direct matches first
-	for _, tuple := range tuples {
-		if tuple.Subject == doorman.Object(request.Subject) && tuple.Object == doorman.Object(request.Object) {
-			role, err := d.roles.Retrieve(ctx, tuple.Role)
-			if err != nil {
-				return nil, fmt.Errorf("db.Retrieve failed: %w", err)
-			}
-			for _, v := range role.Verbs {
-				if v == doorman.Verb(request.Verb) {
-					return &pb.CheckResponse{Success: true}, nil
-				}
-			}
-		}
-	}
-
-	// Now indirect matches
-	for _, tuple := range tuples {
-		if tuple.Object.Type() == "group" {
-			res, err := d.Check(ctx, &pb.CheckRequest{
-				Subject: string(tuple.Object),
-				Verb:    request.Verb,
-				Object:  request.Object,
-			})
-			if err != nil {
-				return nil, fmt.Errorf("check failed: %w", err)
-			}
-			if res.Success {
-				return &pb.CheckResponse{Success: true}, nil
-			}
-		}
-	}
-
-	return &pb.CheckResponse{Success: false}, nil
+	return &pb.CheckResponse{Success: success}, nil
 }
 
 func (d *Doorman) Grant(ctx context.Context, request *pb.GrantRequest) (*pb.GrantResponse, error) {
@@ -254,9 +203,72 @@ func (d *Doorman) grantWithTx(ctx context.Context, tx pgx.Tx, request *pb.GrantR
 		return nil, fmt.Errorf("tuples.Add failed: %w, %w", err, tx.Rollback(ctx))
 	}
 
-	d.sets.InvalidateParents(ctx, tuple.Subject)
+	connectedObjectsAfter, err := d.tuples.WithTx(tx).ListConnected(ctx, tuple.Subject, false)
+	if err != nil {
+		return nil, fmt.Errorf("f failed: %w", err)
+	}
+
+	if err := d.refreshParents(ctx, tx, tuple.Subject); err != nil {
+		return nil, err
+	}
+
+	for _, path := range connectedObjectsAfter {
+		p := path[len(path)-1]
+		if err := d.refreshGroups(ctx, tx, p.Object, p.Role); err != nil {
+			return nil, err
+		}
+	}
 
 	return &pb.GrantResponse{}, nil
+}
+
+func (d *Doorman) refreshGroups(ctx context.Context, tx pgx.Tx, obj doorman.Object, roleId string) error {
+	connectedSubjects, err := d.tuples.WithTx(tx).ListConnected(ctx, obj, true)
+	if err != nil {
+		return fmt.Errorf("db.ListParents failed: %w", err)
+	}
+
+	sets := []doorman.Set{}
+	for _, path := range connectedSubjects {
+		p := path[len(path)-1]
+		if path.GroupsOnly() {
+			sets = append(sets, doorman.Set{Object: p.Object, Verb: "inherits"})
+		}
+	}
+
+
+	role, err := d.roles.Retrieve(ctx, roleId)
+	if err != nil {
+		return fmt.Errorf("roles.retrieve failed: %w", err)
+	}
+
+	for _, verb := range role.Verbs {
+		if err := d.sets.UpdateSubsets(ctx, doorman.Set{Object: obj, Verb: verb}, sets); err != nil {
+			return fmt.Errorf("updateSubsets failed: %w", err)
+		}
+	}
+
+	return nil
+}
+
+func (d *Doorman) refreshParents(ctx context.Context, tx pgx.Tx, obj doorman.Object) error {
+	parents, err := d.tuples.WithTx(tx).ListParents(ctx, obj)
+	if err != nil {
+		return fmt.Errorf("db.ListParents failed: %w", err)
+	}
+
+	sets := []doorman.Set{}
+	for _, tuple := range parents {
+		role, err := d.roles.Retrieve(ctx, tuple.Role)
+		if err != nil {
+			return fmt.Errorf("roles.retrieve failed: %w", err)
+		}
+		for _, verb := range role.Verbs {
+			sets = append(sets, doorman.Set{Object: tuple.Object, Verb: verb})
+		}
+	}
+
+	return d.sets.UpdateParents(ctx, obj, sets)
 }
 
 func (d *Doorman) revokeWithTx(ctx context.Context, tx pgx.Tx, request *pb.RevokeRequest) (*pb.RevokeResponse, error) {
@@ -269,11 +281,26 @@ func (d *Doorman) revokeWithTx(ctx context.Context, tx pgx.Tx, request *pb.Revok
 		Role:    doorman.Object(request.Object).Type() + ":" + request.Role,
 		Object:  doorman.Object(request.Object),
 	}
+
+	connectedObjectsBefore, err := d.tuples.WithTx(tx).ListConnected(ctx, tuple.Subject, false)
+	if err != nil {
+		return nil, fmt.Errorf("f failed: %w", err)
+	}
 	if err := d.tuples.WithTx(tx).Remove(ctx, tuple); err != nil {
 		return nil, fmt.Errorf("tuples.Remove failed: %w, %w", err, tx.Rollback(ctx))
 	}
 
-	d.sets.InvalidateParents(ctx, tuple.Subject)
+
+	if err := d.refreshParents(ctx, tx, tuple.Subject); err != nil {
+		return nil, err
+	}
+
+	for _, path := range connectedObjectsBefore {
+		p := path[len(path)-1]
+		if err := d.refreshGroups(ctx, tx, p.Object, p.Role); err != nil {
+			return nil, err
+		}
+	}
 
 	return &pb.RevokeResponse{}, nil
 }

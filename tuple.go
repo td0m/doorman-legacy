@@ -1,6 +1,9 @@
 package doorman
 
-import "fmt"
+import (
+	"fmt"
+
+)
 
 type Tuple struct {
 	Subject Object `json:"subject"`
@@ -38,4 +41,8 @@ func (path Path) GroupsOnly() bool {
 	}
 
 	return true
+}
+
+func (path Path) Object() Object {
+	return path[len(path)-1].Object
 }
