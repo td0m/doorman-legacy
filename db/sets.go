@@ -56,7 +56,7 @@ func (s Sets) Contains(ctx context.Context, set doorman.Set, subject doorman.Obj
 	}
 
 	subsets, ok := s.set2subset[set]
-	if true {
+	if false {
 		fmt.Println("check", set, subject)
 		pp.Println("parents", parents)
 		pp.Println("subsets", subsets)
@@ -92,7 +92,6 @@ func (s Sets) InvalidateParents(ctx context.Context, subject doorman.Object) err
 }
 
 func (s Sets) UpdateSubsets(ctx context.Context, set doorman.Set, subsets []doorman.Set) error {
-	fmt.Println("updateSubsets", set, subsets)
 	// return s.modifySubset(ctx, set, subset, true)
 	subsetsWithSelf := setsFromList(subsets)
 	subsetsWithSelf.Add(set)

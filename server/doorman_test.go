@@ -202,7 +202,7 @@ func TestCheckViaTwoGroups(t *testing.T) {
 			Subject: string(superadmins),
 			Role:    member.ID,
 			Object:  string(admins),
-	})
+		})
 		require.NoError(t, err)
 	})
 
@@ -647,7 +647,7 @@ func TestCheckRevoke(t *testing.T) {
 	t.Run("Successful revoke of existing role", func(t *testing.T) {
 		_, err = s.Revoke(ctx, &pb.RevokeRequest{
 			Subject: string(alice),
-			Role:    "owner",
+			Role:    owner.ID,
 			Object:  string(banana),
 		})
 		require.NoError(t, err)
@@ -656,10 +656,10 @@ func TestCheckRevoke(t *testing.T) {
 	t.Run("Faiure revoking same role twice (non-idempotent)", func(t *testing.T) {
 		_, err = s.Revoke(ctx, &pb.RevokeRequest{
 			Subject: string(alice),
-			Role:    "owner",
+			Role:    owner.ID,
 			Object:  string(banana),
 		})
-		require.ErrorIs(t, err, db.ErrTupleNotFound)
+		require.ErrorIs(t, err, doorman.ErrTupleNotFound)
 	})
 
 	t.Run("Failure: Check after revoking", func(t *testing.T) {
@@ -722,7 +722,7 @@ func TestCheckRevokeOneOfTwo(t *testing.T) {
 	t.Run("Successful revoke of one of two s.roles", func(t *testing.T) {
 		_, err = s.Revoke(ctx, &pb.RevokeRequest{
 			Subject: string(alice),
-			Role:    "eater",
+			Role:    eater.ID,
 			Object:  string(banana),
 		})
 		require.NoError(t, err)
@@ -972,13 +972,13 @@ func TestRemoveOneOfTwoRolesWithSameVerb(t *testing.T) {
 
 	_, err := s.Grant(ctx, &pb.GrantRequest{
 		Subject: string(alice),
-		Role:    "owner",
+		Role:    owner.ID,
 		Object:  string(banana),
 	})
 	require.NoError(t, err)
 	_, err = s.Grant(ctx, &pb.GrantRequest{
 		Subject: string(alice),
-		Role:    "reader",
+		Role:    reader.ID,
 		Object:  string(banana),
 	})
 	require.NoError(t, err)
@@ -995,7 +995,7 @@ func TestRemoveOneOfTwoRolesWithSameVerb(t *testing.T) {
 
 	_, err = s.Revoke(ctx, &pb.RevokeRequest{
 		Subject: string(alice),
-		Role:    "reader",
+		Role:    reader.ID,
 		Object:  string(banana),
 	})
 	assert.NoError(t, err)
@@ -1012,7 +1012,7 @@ func TestRemoveOneOfTwoRolesWithSameVerb(t *testing.T) {
 
 	_, err = s.Revoke(ctx, &pb.RevokeRequest{
 		Subject: string(alice),
-		Role:    "owner",
+		Role:    owner.ID,
 		Object:  string(banana),
 	})
 	assert.NoError(t, err)
@@ -1027,7 +1027,6 @@ func TestRemoveOneOfTwoRolesWithSameVerb(t *testing.T) {
 		require.False(t, res.Success)
 	}
 }
-
 
 func TestRemoveOneOfTwoRolesWithSameVerb2(t *testing.T) {
 	cleanup(conn)
@@ -1051,21 +1050,21 @@ func TestRemoveOneOfTwoRolesWithSameVerb2(t *testing.T) {
 
 	_, err := s.Grant(ctx, &pb.GrantRequest{
 		Subject: string(alice),
-		Role:    "member",
+		Role:    groupMember.ID,
 		Object:  string(admins),
 	})
 	require.NoError(t, err)
 
 	_, err = s.Grant(ctx, &pb.GrantRequest{
 		Subject: string(admins),
-		Role:    "owner",
+		Role:    owner.ID,
 		Object:  string(banana),
 	})
 	require.NoError(t, err)
 
 	_, err = s.Grant(ctx, &pb.GrantRequest{
 		Subject: string(alice),
-		Role:    "owner",
+		Role:    owner.ID,
 		Object:  string(banana),
 	})
 	require.NoError(t, err)
@@ -1082,7 +1081,7 @@ func TestRemoveOneOfTwoRolesWithSameVerb2(t *testing.T) {
 
 	_, err = s.Revoke(ctx, &pb.RevokeRequest{
 		Subject: string(admins),
-		Role:    "owner",
+		Role:    owner.ID,
 		Object:  string(banana),
 	})
 	assert.NoError(t, err)
@@ -1099,7 +1098,7 @@ func TestRemoveOneOfTwoRolesWithSameVerb2(t *testing.T) {
 
 	_, err = s.Revoke(ctx, &pb.RevokeRequest{
 		Subject: string(alice),
-		Role:    "owner",
+		Role:    owner.ID,
 		Object:  string(banana),
 	})
 	assert.NoError(t, err)
