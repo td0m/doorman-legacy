@@ -124,6 +124,17 @@ func app(ctx context.Context) error {
 	case "roles":
 		os.Args = os.Args[1:]
 		switch os.Args[1] {
+		case "list":
+			if len(os.Args) != 2 {
+				return errors.New("usage: roles list")
+			}
+
+			res, err := srv.ListRoles(ctx, &pb.ListRolesRequest{})
+			if err != nil {
+				return err
+			}
+
+			printRoles(res.Items)
 		case "upsert":
 			if len(os.Args) < 3 {
 				return errors.New("usage: roles create [id] [verb1] ... [verbN]")
@@ -153,12 +164,14 @@ func emojify(id string) string {
 	if len(parts) == 1 {
 		return id
 	}
-	typ, rest := parts[0], parts[1]
+	typ := parts[0]
 	switch typ {
 	case "user":
-		return "👤" + rest
+		return "👤" + id
+	case "group":
+		return "🏘️" + id
 	case "post":
-		return "🗒️" + rest
+		return "🗒️" + id
 	default:
 		return id
 	}
@@ -171,7 +184,6 @@ func printAttrs(attrs map[string]any) {
 }
 
 func printRelations(rs []*pb.Relation) {
-
 	rows := [][]string{}
 	for _, r := range rs {
 		rows = append(rows, []string{emojify(r.Subject), r.Verb, emojify(r.Object)})
@@ -191,6 +203,28 @@ func printRelations(rs []*pb.Relation) {
 
 	fmt.Println(table.Render())
 }
+
+func printRoles(rs []*pb.Role) {
+	rows := [][]string{}
+	for _, r := range rs {
+		rows = append(rows, []string{emojify(r.Id), strings.Join(r.Verbs, ", ")})
+	}
+	table := table.New().
+		Border(lipgloss.NormalBorder()).
+		Headers("Role", "Verbs").
+		StyleFunc(func(row, _ int) lipgloss.Style {
+			switch row {
+			case 0:
+				return lipgloss.NewStyle().Foreground(lipgloss.Color("2")).Bold(true).Padding(0, 1)
+			default:
+				return lipgloss.NewStyle().Padding(0, 1)
+			}
+		}).
+		Rows(rows...)
+
+	fmt.Println(table.Render())
+}
+
 func main() {
 	usage = strings.Replace(usage, "{{version}}", "v0", 1)
 	if len(os.Args) < 2 {

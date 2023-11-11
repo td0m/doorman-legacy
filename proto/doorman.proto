@@ -24,6 +24,13 @@ service Doorman {
 			body: "*"
 		};
 	};
+
+	rpc ListRoles(ListRolesRequest) returns (ListRolesResponse) {
+		option (google.api.http) = {
+			get: "/roles"
+		};
+	};
+
 	rpc RemoveRole(RemoveRoleRequest) returns (Role) {
 		option (google.api.http) = {
 			delete: "/roles/{id}"
@@ -122,4 +129,10 @@ message ChangesRequest {
 message ChangesResponse {
 	repeated Change items = 1;
 	optional string pagination_token = 2;
+}
+
+message ListRolesRequest {}
+
+message ListRolesResponse {
+	repeated Role items = 1;
 }

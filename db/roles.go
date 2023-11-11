@@ -30,6 +30,30 @@ func (r Roles) Add(ctx context.Context, role doorman.Role) error {
 	return nil
 }
 
+func (r Roles) List(ctx context.Context) ([]doorman.Role, error) {
+	query := `
+		select id, verbs
+		from roles
+	`
+
+	var roles []doorman.Role
+
+	rows, err := r.conn.Query(ctx, query)
+	if err != nil {
+		return nil, fmt.Errorf("query failed: %w", err)
+	}
+
+	for rows.Next() {
+		role := doorman.Role{}
+		if err := rows.Scan(&role.ID, &role.Verbs); err != nil {
+			return nil, fmt.Errorf("scan failed: %w", err)
+		}
+		roles = append(roles, role)
+	}
+
+	return roles, nil
+}
+
 func (r Roles) Retrieve(ctx context.Context, id string) (*doorman.Role, error) {
 	query := `
 		select verbs

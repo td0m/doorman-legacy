@@ -22,6 +22,7 @@ const (
 	Doorman_Check_FullMethodName       = "/doorman.Doorman/Check"
 	Doorman_Grant_FullMethodName       = "/doorman.Doorman/Grant"
 	Doorman_Revoke_FullMethodName      = "/doorman.Doorman/Revoke"
+	Doorman_ListRoles_FullMethodName   = "/doorman.Doorman/ListRoles"
 	Doorman_RemoveRole_FullMethodName  = "/doorman.Doorman/RemoveRole"
 	Doorman_UpsertRole_FullMethodName  = "/doorman.Doorman/UpsertRole"
 	Doorman_ListObjects_FullMethodName = "/doorman.Doorman/ListObjects"
@@ -35,6 +36,7 @@ type DoormanClient interface {
 	Check(ctx context.Context, in *CheckRequest, opts ...grpc.CallOption) (*CheckResponse, error)
 	Grant(ctx context.Context, in *GrantRequest, opts ...grpc.CallOption) (*GrantResponse, error)
 	Revoke(ctx context.Context, in *RevokeRequest, opts ...grpc.CallOption) (*RevokeResponse, error)
+	ListRoles(ctx context.Context, in *ListRolesRequest, opts ...grpc.CallOption) (*ListRolesResponse, error)
 	RemoveRole(ctx context.Context, in *RemoveRoleRequest, opts ...grpc.CallOption) (*Role, error)
 	UpsertRole(ctx context.Context, in *UpsertRoleRequest, opts ...grpc.CallOption) (*Role, error)
 	ListObjects(ctx context.Context, in *ListObjectsRequest, opts ...grpc.CallOption) (*ListObjectsResponse, error)
@@ -70,6 +72,15 @@ func (c *doormanClient) Grant(ctx context.Context, in *GrantRequest, opts ...grp
 func (c *doormanClient) Revoke(ctx context.Context, in *RevokeRequest, opts ...grpc.CallOption) (*RevokeResponse, error) {
 	out := new(RevokeResponse)
 	err := c.cc.Invoke(ctx, Doorman_Revoke_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *doormanClient) ListRoles(ctx context.Context, in *ListRolesRequest, opts ...grpc.CallOption) (*ListRolesResponse, error) {
+	out := new(ListRolesResponse)
+	err := c.cc.Invoke(ctx, Doorman_ListRoles_FullMethodName, in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -119,6 +130,7 @@ type DoormanServer interface {
 	Check(context.Context, *CheckRequest) (*CheckResponse, error)
 	Grant(context.Context, *GrantRequest) (*GrantResponse, error)
 	Revoke(context.Context, *RevokeRequest) (*RevokeResponse, error)
+	ListRoles(context.Context, *ListRolesRequest) (*ListRolesResponse, error)
 	RemoveRole(context.Context, *RemoveRoleRequest) (*Role, error)
 	UpsertRole(context.Context, *UpsertRoleRequest) (*Role, error)
 	ListObjects(context.Context, *ListObjectsRequest) (*ListObjectsResponse, error)
@@ -138,6 +150,9 @@ func (UnimplementedDoormanServer) Grant(context.Context, *GrantRequest) (*GrantR
 }
 func (UnimplementedDoormanServer) Revoke(context.Context, *RevokeRequest) (*RevokeResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Revoke not implemented")
+}
+func (UnimplementedDoormanServer) ListRoles(context.Context, *ListRolesRequest) (*ListRolesResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListRoles not implemented")
 }
 func (UnimplementedDoormanServer) RemoveRole(context.Context, *RemoveRoleRequest) (*Role, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method RemoveRole not implemented")
@@ -214,6 +229,24 @@ func _Doorman_Revoke_Handler(srv interface{}, ctx context.Context, dec func(inte
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(DoormanServer).Revoke(ctx, req.(*RevokeRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Doorman_ListRoles_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListRolesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DoormanServer).ListRoles(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Doorman_ListRoles_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DoormanServer).ListRoles(ctx, req.(*ListRolesRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -308,6 +341,10 @@ var Doorman_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "Revoke",
 			Handler:    _Doorman_Revoke_Handler,
+		},
+		{
+			MethodName: "ListRoles",
+			Handler:    _Doorman_ListRoles_Handler,
 		},
 		{
 			MethodName: "RemoveRole",

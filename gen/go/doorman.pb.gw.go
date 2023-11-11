@@ -133,6 +133,24 @@ func local_request_Doorman_Revoke_0(ctx context.Context, marshaler runtime.Marsh
 
 }
 
+func request_Doorman_ListRoles_0(ctx context.Context, marshaler runtime.Marshaler, client DoormanClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
+	var protoReq ListRolesRequest
+	var metadata runtime.ServerMetadata
+
+	msg, err := client.ListRoles(ctx, &protoReq, grpc.Header(&metadata.HeaderMD), grpc.Trailer(&metadata.TrailerMD))
+	return msg, metadata, err
+
+}
+
+func local_request_Doorman_ListRoles_0(ctx context.Context, marshaler runtime.Marshaler, server DoormanServer, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
+	var protoReq ListRolesRequest
+	var metadata runtime.ServerMetadata
+
+	msg, err := server.ListRoles(ctx, &protoReq)
+	return msg, metadata, err
+
+}
+
 func request_Doorman_RemoveRole_0(ctx context.Context, marshaler runtime.Marshaler, client DoormanClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
 	var protoReq RemoveRoleRequest
 	var metadata runtime.ServerMetadata
@@ -406,6 +424,31 @@ func RegisterDoormanHandlerServer(ctx context.Context, mux *runtime.ServeMux, se
 
 	})
 
+	mux.Handle("GET", pattern_Doorman_ListRoles_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
+		ctx, cancel := context.WithCancel(req.Context())
+		defer cancel()
+		var stream runtime.ServerTransportStream
+		ctx = grpc.NewContextWithServerTransportStream(ctx, &stream)
+		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
+		var err error
+		var annotatedContext context.Context
+		annotatedContext, err = runtime.AnnotateIncomingContext(ctx, mux, req, "/doorman.Doorman/ListRoles", runtime.WithHTTPPathPattern("/roles"))
+		if err != nil {
+			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
+			return
+		}
+		resp, md, err := local_request_Doorman_ListRoles_0(annotatedContext, inboundMarshaler, server, req, pathParams)
+		md.HeaderMD, md.TrailerMD = metadata.Join(md.HeaderMD, stream.Header()), metadata.Join(md.TrailerMD, stream.Trailer())
+		annotatedContext = runtime.NewServerMetadataContext(annotatedContext, md)
+		if err != nil {
+			runtime.HTTPError(annotatedContext, mux, outboundMarshaler, w, req, err)
+			return
+		}
+
+		forward_Doorman_ListRoles_0(annotatedContext, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
+
+	})
+
 	mux.Handle("DELETE", pattern_Doorman_RemoveRole_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
 		ctx, cancel := context.WithCancel(req.Context())
 		defer cancel()
@@ -613,6 +656,28 @@ func RegisterDoormanHandlerClient(ctx context.Context, mux *runtime.ServeMux, cl
 
 	})
 
+	mux.Handle("GET", pattern_Doorman_ListRoles_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
+		ctx, cancel := context.WithCancel(req.Context())
+		defer cancel()
+		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
+		var err error
+		var annotatedContext context.Context
+		annotatedContext, err = runtime.AnnotateContext(ctx, mux, req, "/doorman.Doorman/ListRoles", runtime.WithHTTPPathPattern("/roles"))
+		if err != nil {
+			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
+			return
+		}
+		resp, md, err := request_Doorman_ListRoles_0(annotatedContext, inboundMarshaler, client, req, pathParams)
+		annotatedContext = runtime.NewServerMetadataContext(annotatedContext, md)
+		if err != nil {
+			runtime.HTTPError(annotatedContext, mux, outboundMarshaler, w, req, err)
+			return
+		}
+
+		forward_Doorman_ListRoles_0(annotatedContext, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
+
+	})
+
 	mux.Handle("DELETE", pattern_Doorman_RemoveRole_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
 		ctx, cancel := context.WithCancel(req.Context())
 		defer cancel()
@@ -711,6 +776,8 @@ var (
 
 	pattern_Doorman_Revoke_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0}, []string{"revoke"}, ""))
 
+	pattern_Doorman_ListRoles_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0}, []string{"roles"}, ""))
+
 	pattern_Doorman_RemoveRole_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 1, 0, 4, 1, 5, 1}, []string{"roles", "id"}, ""))
 
 	pattern_Doorman_UpsertRole_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 1, 0, 4, 1, 5, 1}, []string{"roles", "id"}, ""))
@@ -726,6 +793,8 @@ var (
 	forward_Doorman_Grant_0 = runtime.ForwardResponseMessage
 
 	forward_Doorman_Revoke_0 = runtime.ForwardResponseMessage
+
+	forward_Doorman_ListRoles_0 = runtime.ForwardResponseMessage
 
 	forward_Doorman_RemoveRole_0 = runtime.ForwardResponseMessage
 

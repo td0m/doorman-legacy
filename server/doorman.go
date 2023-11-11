@@ -203,7 +203,18 @@ func (d *Doorman) UpsertRole(ctx context.Context, request *pb.UpsertRoleRequest)
 		return nil, fmt.Errorf("tx.Commit failed: %w", err)
 	}
 
-	return &pb.Role{}, nil
+	return mapRoleToPb(*role), nil
+}
+
+func mapRoleToPb(r doorman.Role) *pb.Role {
+	verbs := make([]string, len(r.Verbs))
+	for i, v := range r.Verbs {
+		verbs[i] = string(v)
+	}
+	return &pb.Role{
+		Id:    r.ID,
+		Verbs: verbs,
+	}
 }
 
 func (d *Doorman) grantWithTx(ctx context.Context, tx pgx.Tx, request *pb.GrantRequest) (*pb.GrantResponse, error) {
@@ -324,6 +335,22 @@ func (d *Doorman) revokeWithTx(ctx context.Context, tx pgx.Tx, request *pb.Revok
 	}
 
 	return &pb.RevokeResponse{}, nil
+}
+
+func (d *Doorman) ListRoles(ctx context.Context, request *pb.ListRolesRequest) (*pb.ListRolesResponse, error) {
+	roles, err := d.roles.List(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("list failed: %w", err)
+	}
+
+	items := make([]*pb.Role, len(roles))
+	for i, r := range roles {
+		items[i] = mapRoleToPb(r)
+	}
+
+	return &pb.ListRolesResponse{
+		Items: items,
+	}, nil
 }
 
 func NewDoorman(conn *pgxpool.Pool) *Doorman {
