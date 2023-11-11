@@ -27,6 +27,89 @@ type Doorman struct {
 	tuples  db.Tuples
 }
 
+func (d *Doorman) Changes(ctx context.Context, request *pb.ChangesRequest) (*pb.ChangesResponse, error) {
+	changes, err := d.changes.List(ctx, db.ChangeFilter{PaginationToken: request.PaginationToken})
+	if err != nil {
+		return nil, fmt.Errorf("db failed: %w", err)
+	}
+	res := &pb.ChangesResponse{
+		Items: make([]*pb.Change, len(changes)),
+	}
+	for i, v := range changes {
+		res.Items[i] = mapChangeToPb(v)
+		if i == len(changes)-1 {
+			res.PaginationToken = &v.ID
+		}
+	}
+	return res, nil
+}
+
+func (d *Doorman) Check(ctx context.Context, request *pb.CheckRequest) (*pb.CheckResponse, error) {
+	success, err := d.sets.Contains(ctx, doorman.Set{
+		Object: doorman.Object(request.Object),
+		Verb:   doorman.Verb(request.Verb),
+	}, doorman.Object(request.Subject))
+	if err != nil {
+		return &pb.CheckResponse{}, fmt.Errorf("check failed: %w", err)
+	}
+	return &pb.CheckResponse{Success: success}, nil
+}
+
+func (d *Doorman) Grant(ctx context.Context, request *pb.GrantRequest) (*pb.GrantResponse, error) {
+	tx, err := d.conn.Begin(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("begin tx failed: %w", err)
+	}
+
+	res, err := d.grantWithTx(ctx, tx, request)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return nil, fmt.Errorf("tx.Commit failed: %w", err)
+	}
+
+	return res, nil
+}
+
+func (d *Doorman) ListObjects(ctx context.Context, request *pb.ListObjectsRequest) (*pb.ListObjectsResponse, error) {
+	sub := doorman.Object(request.Subject)
+	parents, err := d.sets.ListParents(ctx, sub)
+	if err != nil {
+		return nil, fmt.Errorf("sets.ListParents failed: %w", err)
+	}
+
+	items := make([]*pb.Relation, len(parents))
+	for i, parent := range parents {
+		items[i] = &pb.Relation{
+			Subject: string(sub),
+			Verb:    string(parent.Verb),
+			Object:  string(parent.Object),
+		}
+	}
+
+	return &pb.ListObjectsResponse{
+		Items: items,
+	}, nil
+}
+
+func (d *Doorman) ListRoles(ctx context.Context, request *pb.ListRolesRequest) (*pb.ListRolesResponse, error) {
+	roles, err := d.roles.List(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("list failed: %w", err)
+	}
+
+	items := make([]*pb.Role, len(roles))
+	for i, r := range roles {
+		items[i] = mapRoleToPb(r)
+	}
+
+	return &pb.ListRolesResponse{
+		Items: items,
+	}, nil
+}
+
 func (d *Doorman) ProcessChange() error {
 	timeout := time.Second * 3
 	stalePeriod := time.Hour
@@ -98,145 +181,11 @@ func (d *Doorman) ProcessChange() error {
 	return nil
 }
 
-func (d *Doorman) processChange(ctx context.Context, change doorman.Change) error {
-	switch change.Type {
-	case "GRANTED":
-		return d.processChangeGrantedOrRevoked(ctx, change)
-	case "REVOKED":
-		return d.processChangeGrantedOrRevoked(ctx, change)
-	default:
-		slog.Warn("unhandled change", "type", change.Type)
+func (d *Doorman) RebuildCache(ctx context.Context, request *pb.RebuildCacheRequest) (*pb.RebuildCacheResponse, error) {
+	if err := d.changes.SetStatusOfAll(ctx, "pending"); err != nil {
+		return nil, fmt.Errorf("marking all as pending failed: %w", err)
 	}
-
-	return nil
-}
-
-func (d *Doorman) processChangeGrantedOrRevoked(ctx context.Context, change doorman.Change) error {
-	tx, err := d.conn.Begin(ctx)
-	if err != nil {
-		return fmt.Errorf("begin tx failed: %w", err)
-	}
-
-	// TODO: think if we can remove locking + tx here?
-	if err := d.tuples.WithTx(tx).Lock(ctx); err != nil {
-		return err
-	}
-
-	var tuple doorman.Tuple
-	if err := json.Unmarshal(change.Payload, &tuple); err != nil {
-		return fmt.Errorf("json unmarshal failed: %w", err)
-	}
-
-	var staleObjects []doorman.Path
-
-	if change.Type == "GRANTED" {
-		staleObjects, err = d.tuples.WithTx(tx).ListConnected(ctx, tuple.Subject, false)
-		if err != nil {
-			return fmt.Errorf("listConnected failed: %w", err)
-		}
-	} else {
-		staleObjects, err = d.tuples.WithTx(tx).ListConnected(ctx, tuple.Subject, false)
-		if err != nil {
-			return fmt.Errorf("listConnected failed: %w", err)
-		}
-
-		removedPath := doorman.Path{doorman.Connection{Role: tuple.Role, Object: tuple.Object}}
-		staleObjects = append(staleObjects, removedPath)
-
-		staleObjectsViaRemoved, err := d.tuples.WithTx(tx).ListConnected(ctx, tuple.Object, false)
-		if err != nil {
-			return fmt.Errorf("listConnected failed: %w", err)
-		}
-
-		for _, incompletePath := range staleObjectsViaRemoved {
-			path := append(removedPath, incompletePath...)
-			staleObjects = append(staleObjects, path)
-		}
-	}
-
-	if err := d.refreshParents(ctx, tx, tuple.Subject); err != nil {
-		return err
-	}
-
-	for _, path := range staleObjects {
-		p := path[len(path)-1]
-		if err := d.refreshGroups(ctx, tx, p.Object, p.Role); err != nil {
-			return err
-		}
-	}
-
-	if err := tx.Commit(ctx); err != nil {
-		return fmt.Errorf("commit failed: %w", err)
-	}
-
-	return nil
-}
-
-func (d *Doorman) Changes(ctx context.Context, request *pb.ChangesRequest) (*pb.ChangesResponse, error) {
-	changes, err := d.changes.List(ctx, db.ChangeFilter{PaginationToken: request.PaginationToken})
-	if err != nil {
-		return nil, fmt.Errorf("db failed: %w", err)
-	}
-	res := &pb.ChangesResponse{
-		Items: make([]*pb.Change, len(changes)),
-	}
-	for i, v := range changes {
-		res.Items[i] = mapChangeToPb(v)
-		if i == len(changes)-1 {
-			res.PaginationToken = &v.ID
-		}
-	}
-	return res, nil
-}
-
-func (d *Doorman) Check(ctx context.Context, request *pb.CheckRequest) (*pb.CheckResponse, error) {
-	success, err := d.sets.Contains(ctx, doorman.Set{
-		Object: doorman.Object(request.Object),
-		Verb:   doorman.Verb(request.Verb),
-	}, doorman.Object(request.Subject))
-	if err != nil {
-		return &pb.CheckResponse{}, fmt.Errorf("check failed: %w", err)
-	}
-	return &pb.CheckResponse{Success: success}, nil
-}
-
-func (d *Doorman) Grant(ctx context.Context, request *pb.GrantRequest) (*pb.GrantResponse, error) {
-	tx, err := d.conn.Begin(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("begin tx failed: %w", err)
-	}
-
-	res, err := d.grantWithTx(ctx, tx, request)
-	if err != nil {
-		return nil, err
-	}
-
-	if err := tx.Commit(ctx); err != nil {
-		return nil, fmt.Errorf("tx.Commit failed: %w", err)
-	}
-
-	return res, nil
-}
-
-func (d *Doorman) ListObjects(ctx context.Context, request *pb.ListObjectsRequest) (*pb.ListObjectsResponse, error) {
-	sub := doorman.Object(request.Subject)
-	parents, err := d.sets.ListParents(ctx, sub)
-	if err != nil {
-		return nil, fmt.Errorf("sets.ListParents failed: %w", err)
-	}
-
-	items := make([]*pb.Relation, len(parents))
-	for i, parent := range parents {
-		items[i] = &pb.Relation{
-			Subject: string(sub),
-			Verb:    string(parent.Verb),
-			Object:  string(parent.Object),
-		}
-	}
-
-	return &pb.ListObjectsResponse{
-		Items: items,
-	}, nil
+	return &pb.RebuildCacheResponse{}, nil
 }
 
 func (d *Doorman) RemoveRole(ctx context.Context, request *pb.RemoveRoleRequest) (*pb.Role, error) {
@@ -355,17 +304,6 @@ func (d *Doorman) UpsertRole(ctx context.Context, request *pb.UpsertRoleRequest)
 	return mapRoleToPb(*role), nil
 }
 
-func mapRoleToPb(r doorman.Role) *pb.Role {
-	verbs := make([]string, len(r.Verbs))
-	for i, v := range r.Verbs {
-		verbs[i] = string(v)
-	}
-	return &pb.Role{
-		Id:    r.ID,
-		Verbs: verbs,
-	}
-}
-
 func (d *Doorman) grantWithTx(ctx context.Context, tx pgx.Tx, request *pb.GrantRequest) (*pb.GrantResponse, error) {
 	if err := d.tuples.WithTx(tx).Lock(ctx); err != nil {
 		return nil, fmt.Errorf("tuples.Lock failed: %w, %w", err, tx.Rollback(ctx))
@@ -400,6 +338,80 @@ func (d *Doorman) grantWithTx(ctx context.Context, tx pgx.Tx, request *pb.GrantR
 	}
 
 	return &pb.GrantResponse{}, nil
+}
+
+func (d *Doorman) processChange(ctx context.Context, change doorman.Change) error {
+	switch change.Type {
+	case "GRANTED":
+		return d.processChangeGrantedOrRevoked(ctx, change)
+	case "REVOKED":
+		return d.processChangeGrantedOrRevoked(ctx, change)
+	default:
+		slog.Warn("unhandled change", "type", change.Type)
+	}
+
+	return nil
+}
+
+func (d *Doorman) processChangeGrantedOrRevoked(ctx context.Context, change doorman.Change) error {
+	tx, err := d.conn.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("begin tx failed: %w", err)
+	}
+
+	// TODO: think if we can remove locking + tx here?
+	if err := d.tuples.WithTx(tx).Lock(ctx); err != nil {
+		return err
+	}
+
+	var tuple doorman.Tuple
+	if err := json.Unmarshal(change.Payload, &tuple); err != nil {
+		return fmt.Errorf("json unmarshal failed: %w", err)
+	}
+
+	var staleObjects []doorman.Path
+
+	if change.Type == "GRANTED" {
+		staleObjects, err = d.tuples.WithTx(tx).ListConnected(ctx, tuple.Subject, false)
+		if err != nil {
+			return fmt.Errorf("listConnected failed: %w", err)
+		}
+	} else {
+		staleObjects, err = d.tuples.WithTx(tx).ListConnected(ctx, tuple.Subject, false)
+		if err != nil {
+			return fmt.Errorf("listConnected failed: %w", err)
+		}
+
+		removedPath := doorman.Path{doorman.Connection{Role: tuple.Role, Object: tuple.Object}}
+		staleObjects = append(staleObjects, removedPath)
+
+		staleObjectsViaRemoved, err := d.tuples.WithTx(tx).ListConnected(ctx, tuple.Object, false)
+		if err != nil {
+			return fmt.Errorf("listConnected failed: %w", err)
+		}
+
+		for _, incompletePath := range staleObjectsViaRemoved {
+			path := append(removedPath, incompletePath...)
+			staleObjects = append(staleObjects, path)
+		}
+	}
+
+	if err := d.refreshParents(ctx, tx, tuple.Subject); err != nil {
+		return err
+	}
+
+	for _, path := range staleObjects {
+		p := path[len(path)-1]
+		if err := d.refreshGroups(ctx, tx, p.Object, p.Role); err != nil {
+			return err
+		}
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("commit failed: %w", err)
+	}
+
+	return nil
 }
 
 func (d *Doorman) refreshGroups(ctx context.Context, tx pgx.Tx, obj doorman.Object, roleId string) error {
@@ -489,29 +501,6 @@ func (d *Doorman) revokeWithTx(ctx context.Context, tx pgx.Tx, request *pb.Revok
 	return &pb.RevokeResponse{}, nil
 }
 
-func (d *Doorman) ListRoles(ctx context.Context, request *pb.ListRolesRequest) (*pb.ListRolesResponse, error) {
-	roles, err := d.roles.List(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("list failed: %w", err)
-	}
-
-	items := make([]*pb.Role, len(roles))
-	for i, r := range roles {
-		items[i] = mapRoleToPb(r)
-	}
-
-	return &pb.ListRolesResponse{
-		Items: items,
-	}, nil
-}
-
-func (d *Doorman) RebuildCache(ctx context.Context, request *pb.RebuildCacheRequest) (*pb.RebuildCacheResponse, error) {
-	if err := d.changes.SetStatusOfAll(ctx, "pending"); err != nil {
-		return nil, fmt.Errorf("marking all as pending failed: %w", err)
-	}
-	return &pb.RebuildCacheResponse{}, nil
-}
-
 func NewDoorman(conn *pgxpool.Pool) *Doorman {
 	return &Doorman{conn: conn, changes: db.NewChanges(conn), sets: db.NewSets(conn), roles: db.NewRoles(conn), tuples: db.NewTuples(conn), objects: db.NewObjects(conn)}
 }
@@ -519,5 +508,16 @@ func NewDoorman(conn *pgxpool.Pool) *Doorman {
 func mapChangeToPb(c doorman.Change) *pb.Change {
 	return &pb.Change{
 		Type: c.Type,
+	}
+}
+
+func mapRoleToPb(r doorman.Role) *pb.Role {
+	verbs := make([]string, len(r.Verbs))
+	for i, v := range r.Verbs {
+		verbs[i] = string(v)
+	}
+	return &pb.Role{
+		Id:    r.ID,
+		Verbs: verbs,
 	}
 }
