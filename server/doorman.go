@@ -29,6 +29,17 @@ type Doorman struct {
 	tuples  db.Tuples
 }
 
+func (d *Doorman) ProcessAllChanges() error {
+	for {
+		if err := d.ProcessChange(); err != nil {
+			if err == pgx.ErrNoRows {
+				return nil
+			}
+			return fmt.Errorf("processing change failed: %w", err)
+		}
+	}
+}
+
 func (d *Doorman) Changes(ctx context.Context, request *pb.ChangesRequest) (*pb.ChangesResponse, error) {
 	changes, err := d.changes.List(ctx, db.ChangeFilter{PaginationToken: request.PaginationToken})
 	if err != nil {
@@ -161,7 +172,7 @@ func (d *Doorman) ProcessChange() error {
 		if err := tx.Commit(ctx); err != nil {
 			return fmt.Errorf("tx failed to commit: %w", err)
 		}
-		return nil
+		return pgx.ErrNoRows
 	}
 
 	// Failed to execute query, probably a bad query/schema
@@ -390,6 +401,7 @@ func (d *Doorman) processChangeGrantedOrRevoked(ctx context.Context, change door
 
 	var staleObjects []doorman.Path
 
+	a := time.Now()
 	if change.Type == "GRANTED" {
 		staleObjects, err = d.tuples.WithTx(tx).ListConnected(ctx, tuple.Subject, false)
 		if err != nil {
@@ -414,17 +426,29 @@ func (d *Doorman) processChangeGrantedOrRevoked(ctx context.Context, change door
 			staleObjects = append(staleObjects, path)
 		}
 	}
+	fmt.Println("fetch", time.Since(a))
+
+	a = time.Now()
 
 	if err := d.refreshParents(ctx, tx, tuple.Subject); err != nil {
 		return err
 	}
 
+	fmt.Println("refreshParents", time.Since(a))
+
+	a = time.Now()
+
+	fmt.Println("stale", len(staleObjects))
 	for _, path := range staleObjects {
-		p := path[len(path)-1]
-		if err := d.refreshGroups(ctx, tx, p.Object, p.Role); err != nil {
-			return err
+		if tuple.Subject.Type() == "group" {
+			p := path[len(path)-1]
+			if err := d.refreshGroups(ctx, tx, p.Object, p.Role); err != nil {
+				return err
+			}
 		}
 	}
+
+	fmt.Println("refreshGroups", time.Since(a))
 
 	if err := tx.Commit(ctx); err != nil {
 		return fmt.Errorf("commit failed: %w", err)
@@ -434,9 +458,14 @@ func (d *Doorman) processChangeGrantedOrRevoked(ctx context.Context, change door
 }
 
 func (d *Doorman) refreshGroups(ctx context.Context, tx pgx.Tx, obj doorman.Object, roleId string) error {
+	a := time.Now()
 	connectedSubjects, err := d.tuples.WithTx(tx).ListConnected(ctx, obj, true)
 	if err != nil {
 		return fmt.Errorf("db.ListParents failed: %w", err)
+	}
+
+	if false {
+		fmt.Println("listconnected", time.Since(a))
 	}
 
 	sets := []doorman.Set{}
